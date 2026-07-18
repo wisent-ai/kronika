@@ -117,14 +117,3 @@ const result = await writeDocumentation({
 
 process.stdout.write(result.content);
 ```
-
-The exported `CompletionClient` interface is also a test seam for callers that need deterministic contract tests without spending model quota.
-
-## Verification
-
-```sh
-npm test
-npm run smoke
-```
-
-The test suite verifies the canonical Brama HMAC message, the actual HTTP request shape, safe source filtering, prompt grounding, atomic writes, and repository-bound output paths. The smoke command builds the CLI and exercises source discovery without requiring Brama credentials.
