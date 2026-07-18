@@ -69,7 +69,6 @@ export const writeDocumentation = async (
     messages: buildDocumentationMessages(options, collection),
     model: options.model,
     maxTokens: options.maxTokens,
-    temperature: options.temperature,
   });
   const content = normalizeModelOutput(completion.content);
   if (options.apply) writeAtomically(outputPath, content);

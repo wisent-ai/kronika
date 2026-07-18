@@ -86,7 +86,6 @@ Useful controls:
 | `--max-input-bytes <n>` | Bound the total source payload; default `200000`. |
 | `--max-file-bytes <n>` | Bound one source file; default `64000`. |
 | `--max-tokens <n>` | Set the completion budget; default `8000`. |
-| `--temperature <n>` | Set generation temperature; default `0.2`. |
 | `--timeout-ms <n>` | Bound the Brama request; default `120000`. |
 | `--json` | Return a machine-readable result. |
 | `--apply` | Atomically replace the requested output. |
@@ -111,7 +110,6 @@ const result = await writeDocumentation({
   maxInputBytes: 200_000,
   maxFileBytes: 64_000,
   maxTokens: 8_000,
-  temperature: 0.2,
   apply: false,
 }, client);
 

@@ -14,7 +14,6 @@ type ParsedArguments = {
   maxInputBytes: number;
   maxFileBytes: number;
   maxTokens: number;
-  temperature: number;
   timeoutMs: number;
   apply: boolean;
   json: boolean;
@@ -40,7 +39,6 @@ Options:
   --max-input-bytes <n>  Total source budget (default: 200000)
   --max-file-bytes <n>   Per-file source limit (default: 64000)
   --max-tokens <n>       Completion token budget (default: 8000)
-  --temperature <n>      Completion temperature (default: 0.2)
   --timeout-ms <n>       Brama request timeout (default: 120000)
   --apply                Atomically replace the target document
   --json                 Emit a machine-readable result
@@ -76,7 +74,6 @@ const parseArguments = (argv: string[]): ParsedArguments => {
       maxInputBytes: 200_000,
       maxFileBytes: 64_000,
       maxTokens: 8_000,
-      temperature: 0.2,
       timeoutMs: 120_000,
       apply: false,
       json: false,
@@ -93,7 +90,6 @@ const parseArguments = (argv: string[]): ParsedArguments => {
     maxInputBytes: 200_000,
     maxFileBytes: 64_000,
     maxTokens: 8_000,
-    temperature: 0.2,
     timeoutMs: 120_000,
     apply: false,
     json: false,
@@ -138,14 +134,6 @@ const parseArguments = (argv: string[]): ParsedArguments => {
         break;
       case "--max-tokens":
         parsed.maxTokens = positiveIntegerArgument(flag, value);
-        index += 1;
-        break;
-      case "--temperature":
-        if (value === undefined) throw new Error("--temperature requires a value");
-        parsed.temperature = Number(value);
-        if (!Number.isFinite(parsed.temperature) || parsed.temperature < 0 || parsed.temperature > 2) {
-          throw new Error("--temperature must be between 0 and 2");
-        }
         index += 1;
         break;
       case "--timeout-ms":
@@ -214,7 +202,6 @@ const main = async (): Promise<void> => {
     ...sourceOptions,
     model: args.model,
     maxTokens: args.maxTokens,
-    temperature: args.temperature,
     apply: args.apply,
     ...(args.instruction ? { instruction: args.instruction } : {}),
   };

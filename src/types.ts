@@ -7,7 +7,6 @@ export type CompletionRequest = {
   messages: ChatMessage[];
   model: string;
   maxTokens: number;
-  temperature: number;
 };
 
 export type CompletionResult = {
@@ -48,7 +47,6 @@ export type WriteDocumentationOptions = SourceOptions & {
   instruction?: string;
   model: string;
   maxTokens: number;
-  temperature: number;
   apply: boolean;
 };
 

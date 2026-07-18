@@ -92,7 +92,6 @@ export class BramaClient implements CompletionClient {
       model: request.model,
       messages: request.messages,
       max_tokens: request.maxTokens,
-      temperature: request.temperature,
     });
 
     const controller = new AbortController();
