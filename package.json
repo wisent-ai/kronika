@@ -1,8 +1,10 @@
 {
   "name": "@wisent-ai/kronika",
   "version": "0.1.0",
-  "private": true,
+  "private": false,
   "description": "Source-grounded documentation writer backed by Brama",
+  "license": "SEE LICENSE IN LICENSE",
+  "repository": "https://github.com/wisent-ai/kronika",
   "type": "module",
   "bin": {
     "kronika": "dist/src/cli.js"
@@ -12,6 +14,7 @@
   },
   "files": [
     "dist",
+    "LICENSE",
     "README.md"
   ],
   "engines": {

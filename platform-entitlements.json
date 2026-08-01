@@ -1,0 +1,11 @@
+{
+  "schema": "wisent.product-entitlements.current",
+  "product": "kronika",
+  "organization_id": "WISENT_ORGANIZATION_ID",
+  "principal_id": "authenticated documentation maintainer identity",
+  "community": ["kronika.local"],
+  "managed": ["kronika.managed-sync", "kronika.organization-review"],
+  "managed_failure": "hosted scheduling, synchronization, and review fail closed",
+  "community_failure": "local source-grounded documentation generation remains available",
+  "billing_unit": "documented repository"
+}
