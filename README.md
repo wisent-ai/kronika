@@ -1,5 +1,13 @@
 # Kronika
 
+<!-- wisent-readme-signals:start -->
+[![Release](https://img.shields.io/github/v/release/wisent-ai/kronika?display_name=tag&sort=semver)](https://github.com/wisent-ai/kronika/releases)
+[![Downloads](https://img.shields.io/github/downloads/wisent-ai/kronika/total)](https://github.com/wisent-ai/kronika/releases)
+[![License](https://img.shields.io/github/license/wisent-ai/kronika)](https://github.com/wisent-ai/kronika)
+[![Discord](https://img.shields.io/badge/Discord-Join%20Wisent-5865F2?logo=discord&logoColor=white)](https://discord.gg/qRjpkthq54)
+<!-- wisent-readme-signals:end -->
+
+
 Kronika writes source-grounded repository documentation through Brama. It selects safe text files, builds a documentation-specific prompt, sends a signed OpenAI-compatible request to Brama, and returns or atomically applies the complete Markdown document.
 
 ## Contract
