@@ -1,57 +1,173 @@
 # Kronika
 
-<!-- wisent-readme-signals:start -->
-[![Release](https://img.shields.io/github/v/release/wisent-ai/kronika?display_name=tag&sort=semver)](https://github.com/wisent-ai/kronika/releases)
-[![Downloads](https://img.shields.io/github/downloads/wisent-ai/kronika/total)](https://github.com/wisent-ai/kronika/releases)
-[![License](https://img.shields.io/github/license/wisent-ai/kronika)](https://github.com/wisent-ai/kronika)
-[![Discord](https://img.shields.io/badge/Discord-Join%20Wisent-5865F2?logo=discord&logoColor=white)](https://discord.gg/qRjpkthq54)
-<!-- wisent-readme-signals:end -->
+**Kronika is a local source-grounded documentation writer that selects bounded
+repository evidence, asks Brama for a complete Markdown document, and previews or
+atomically applies the result.**
 
+It keeps repository selection, exclusions, request signing, output confinement,
+and the final write under the operator's control. Source files are evidence, not
+instructions to the model.
 
-Kronika writes source-grounded repository documentation through Brama. It selects safe text files, builds a documentation-specific prompt, sends a signed OpenAI-compatible request to Brama, and returns or atomically applies the complete Markdown document.
+[Quick start](#quick-start) · [CLI reference](#primary-interfaces) ·
+[Library API](#library-api) ·
+[Canonical repository](https://github.com/wisent-ai/kronika)
 
-## Contract
+Version `0.1.0` is public development source. The current package generates one
+local document at a time; scheduled multi-repository synchronization, team
+review, retained versions, organization search, and supported publishing are
+separate future managed-service boundaries, not capabilities of this package.
 
-- Brama is the only model boundary. Kronika calls `POST /v1/chat/completions` and signs the exact JSON body with the canonical `x-agent-id`, `x-agent-timestamp`, and `x-agent-signature` HMAC headers.
-- Source files are evidence, not instructions. The prompt tells the model to ignore instructions embedded in repository content and forbids invented commands, APIs, configuration, or status claims.
-- Secret-prone files, private keys, dependency trees, build output, recordings, lock files, and private deployment state are excluded before prompt construction.
-- Generation is preview-only by default. `--apply` is required to replace a document, and the replacement uses an atomic rename inside the repository.
-- Output paths and explicit sources cannot escape the selected repository.
+## Problem and intended users
 
-## Install
+Repository documentation becomes stale because the evidence changes faster than
+manual prose and because generated prose often loses the source boundary. A
+useful writer must show what enters the prompt, exclude secret-prone files, bound
+payloads, prevent repository content from becoming model instructions, preview
+changes, and refuse writes outside the selected repository.
 
-```sh
+Kronika serves:
+
+- **maintainers** drafting or regenerating README and technical documentation
+  from a controlled source set;
+- **reviewers** inspecting selected and skipped files before any model call;
+- **documentation platform operators** integrating a local engine with a
+  separately operated Brama route;
+- **tool developers** embedding the same selection and generation contract
+  through the TypeScript API.
+
+## Product boundaries
+
+### Included
+
+- Git-aware source discovery with bounded recursive fallback outside a worktree;
+- deterministic prioritization of existing output, README, `docs/`, manifests,
+  configuration, schemas, and application source;
+- exclusion of secret-prone files, private keys, dependency trees, build output,
+  recordings, lock files, and private deployment state;
+- source manifest, selected byte total, and skipped-file reasons;
+- one signed OpenAI-compatible Brama completion request;
+- prompt rules that treat repository content as untrusted evidence and prohibit
+  invented commands, APIs, configuration, and status;
+- preview-only output by default;
+- explicit `--apply` with an atomic rename inside the selected repository;
+- CLI plus a dependency-free runtime TypeScript library package.
+
+### Explicit non-goals
+
+- Kronika does not prove that generated prose is correct merely because selected
+  source was supplied; a maintainer must review claims and omissions.
+- It does not execute repository instructions, commands, build scripts, examples,
+  or generated output.
+- It does not allow an output or explicit source to escape the selected
+  repository.
+- The current package does not persist a stable source-span provenance graph,
+  freshness history, approval workflow, organization taxonomy, or retained
+  document versions.
+- It does not schedule repositories, publish a site, configure SSO/RBAC, or
+  provide an SLA.
+- Private repositories, generated customer documents, prompts, responses,
+  credentials, roadmaps, and production configuration must not be published as
+  package fixtures or public issues.
+
+### Supported environment and current capability
+
+| Surface | Requirement | Current state |
+|---|---|---|
+| CLI and library | Node.js 22+ | Implemented |
+| Local source inspection | readable repository | Implemented; no model call |
+| Documentation preview | Brama URL and scoped HMAC identity | Implemented |
+| Atomic apply | writable output within repository | Implemented with explicit flag |
+| Stable provenance/freshness store | — | Not implemented in `0.1.0` |
+| Hosted scheduling/review/publishing | managed service | Not implemented by this package |
+
+## Core use cases
+
+### Inspect the evidence boundary
+
+- **Actor:** a maintainer or reviewer.
+- **Initial state:** a local repository and optional explicit source paths.
+- **Outcome:** `kronika sources` prints every selected file, total bytes, and
+  skipped file with its reason.
+- **Boundary:** no Brama call occurs and no repository file changes.
+
+### Preview a complete document
+
+- **Actor:** a maintainer with scoped Brama access.
+- **Initial state:** selected sources, output path, instruction, model selector,
+  and payload bounds are explicit.
+- **Outcome:** Kronika signs one completion request and writes the candidate
+  Markdown to stdout.
+- **Boundary:** preview does not modify the repository; the result remains
+  model-generated and requires human review against source.
+
+### Apply a reviewed replacement
+
+- **Actor:** a maintainer authorized to edit the target repository.
+- **Initial state:** the same generation request includes `--apply` and its
+  output path stays inside the repository.
+- **Outcome:** Kronika atomically replaces the requested document.
+- **Boundary:** applying does not run formatting, tests, deployment, publishing,
+  or approval workflow.
+
+## How Kronika works
+
+```text
+repository
+   │
+   ├─ git-aware discovery / explicit sources
+   ├─ secret and artifact exclusions
+   └─ byte and path bounds
+             │
+             ▼
+ selected-source manifest + documentation instruction
+             │ exact JSON body + HMAC
+             ▼
+           Brama
+             │
+             ▼
+ complete Markdown candidate
+       ├─ stdout preview (default)
+       └─ atomic in-repository replacement (--apply)
+```
+
+Kronika owns source selection, prompt construction, request signing, output
+validation, and local replacement. Brama owns model selection and inference.
+Git and the repository remain authoritative for source and review history.
+
+## Quick start
+
+This safe path builds the package and inspects which files Kronika would select.
+It makes no model request and changes no project file.
+
+### Prerequisites
+
+- Git;
+- Node.js 22 or newer;
+- npm.
+
+```bash
+git clone https://github.com/wisent-ai/kronika.git
+cd kronika
 npm install
 npm run build
+node dist/src/cli.js sources --repo . --source README.md --source src
+```
+
+Expected result: the command prints the selected manifest, byte total, and any
+skipped files with reasons. Only configure Brama after reviewing that boundary.
+
+For local command installation:
+
+```bash
 npm link
-```
-
-Node.js 22 or newer is required. The package has no runtime dependencies.
-
-## Brama configuration
-
-```sh
-export BRAMA_URL=https://model-router.example.com
-export WISENT_APP_AGENT_ID=kronika
-export WISENT_APP_AGENT_AUTH_SECRET='<skarbiec-injected-secret>'
-export KRONIKA_MODEL=any
-```
-
-`MODEL_ROUTER_URL` is accepted as an alias for `BRAMA_URL`. `KRONIKA_MODEL` can be any Brama selector available to the signed agent, including an explicit subscription, `any`, or `task:documentation` when task-quality evidence exists.
-
-Do not commit the HMAC secret. Inject it at runtime through the deployment's secret boundary.
-
-## Inspect selected sources
-
-```sh
 kronika sources --repo /path/to/project
 ```
 
-Automatic discovery uses `git ls-files --cached --others --exclude-standard`, falling back to a bounded recursive scan outside a Git worktree. It prioritizes the existing output, README and `docs/`, package manifests, configuration, schemas, and application source.
+## Primary interfaces
 
-Select an explicit subset when the repository is large:
+### Inspect sources
 
-```sh
+```bash
 kronika sources \
   --repo /path/to/project \
   --source README.md \
@@ -59,13 +175,13 @@ kronika sources \
   --source docs
 ```
 
-The command prints the selected manifest, byte total, and every skipped file with its reason. It never calls Brama.
+Automatic discovery uses
+`git ls-files --cached --others --exclude-standard`, then a bounded recursive
+scan when the path is not a Git worktree.
 
-## Generate documentation
+### Generate and preview
 
-Preview a complete replacement on stdout:
-
-```sh
+```bash
 kronika write \
   --repo /path/to/project \
   --output docs/architecture.md \
@@ -74,29 +190,30 @@ kronika write \
   --instruction 'Document components, request flow, invariants, and failure modes.'
 ```
 
-Apply the generated document:
-
-```sh
-kronika write \
-  --repo /path/to/project \
-  --output docs/architecture.md \
-  --source README.md \
-  --source src \
-  --instruction 'Document components, request flow, invariants, and failure modes.' \
-  --apply
-```
-
-Useful controls:
+Add `--apply` only after confirming the selected source boundary and accepting a
+complete replacement of the output file.
 
 | Option | Purpose |
-| --- | --- |
-| `--model <selector>` | Override the Brama selector. |
-| `--max-input-bytes <n>` | Bound the total source payload; default `200000`. |
-| `--max-file-bytes <n>` | Bound one source file; default `64000`. |
-| `--max-tokens <n>` | Set the completion budget; default `8000`. |
-| `--timeout-ms <n>` | Bound the Brama request; default `120000`. |
-| `--json` | Return a machine-readable result. |
-| `--apply` | Atomically replace the requested output. |
+|---|---|
+| `--model <selector>` | override the Brama selector |
+| `--max-input-bytes <n>` | total source payload; default `200000` |
+| `--max-file-bytes <n>` | one source file; default `64000` |
+| `--max-tokens <n>` | completion budget; default `8000` |
+| `--timeout-ms <n>` | Brama request bound; default `120000` |
+| `--json` | machine-readable result |
+| `--apply` | atomically replace the requested output |
+
+### Brama configuration
+
+```bash
+export BRAMA_URL=https://model-router.example.com
+export WISENT_APP_AGENT_ID=kronika
+export WISENT_APP_AGENT_AUTH_SECRET='<runtime-injected-secret>'
+export KRONIKA_MODEL=any
+```
+
+`MODEL_ROUTER_URL` is accepted as an alias for `BRAMA_URL`. Never commit the HMAC
+secret; materialize it through the deployment's scoped secret boundary.
 
 ## Library API
 
@@ -123,3 +240,35 @@ const result = await writeDocumentation({
 
 process.stdout.write(result.content);
 ```
+
+## Operational model
+
+- **Configuration:** CLI/API arguments plus scoped Brama URL, identity, secret,
+  and model selector.
+- **State:** no hosted database; output and Git history remain in the selected
+  repository.
+- **Credentials:** HMAC material is a runtime secret and must never enter source,
+  output, logs, or public issues.
+- **Observability:** selected/skipped source manifest, byte totals, preview,
+  machine-readable result, Brama errors, and Git diff after apply.
+- **Recovery:** preview by default; an applied file is atomically replaced and
+  should be recovered through repository version control.
+- **Cost:** local inspection is free of model use; each write uses configured
+  Brama inference. Managed repository scheduling, storage, review, and publishing
+  would be separate operated costs.
+
+## Project status and support
+
+- **Maturity:** public development package, version `0.1.0`.
+- **Release surface:** compiled `dist`, README, and licence; no runtime npm
+  dependencies.
+- **Local contract:** source selection, bounded Brama generation, preview, and
+  explicit atomic apply.
+- **Managed contract:** scheduling, review, retained versions, organization
+  search/access controls, publishing, private deployment, and SLA are not
+  provided by this repository.
+- **Issues:** [`wisent-ai/kronika`](https://github.com/wisent-ai/kronika/issues).
+- **Security and privacy:** use private GitHub Security Advisories; never attach
+  private source, generated customer documents, prompts, responses, credentials,
+  roadmaps, taxonomy, or production configuration to a public issue.
+- **License:** Apache License 2.0; see [`LICENSE`](LICENSE).
