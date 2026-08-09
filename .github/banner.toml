@@ -1,0 +1,15 @@
+[automation]
+managed = true
+source_fingerprint = "df3c9f97833a71e5"
+category = "developer"
+
+[banner]
+title = "Write documentation from repository evidence."
+description = "Local writer that selects bounded source evidence and uses Brama to produce Markdown."
+product = "Wisent"
+url = "wisent.ai"
+theme = "dark"
+layout = "signal-left"
+art_seed = "kronika"
+width = 1584
+height = 396
