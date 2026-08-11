@@ -10,9 +10,15 @@
 
 # Kronika: Perfect Documentation Built Only from Repository Truth
 
-**Kronika is a local source-grounded documentation writer that selects bounded
-repository evidence, asks Brama for a complete Markdown document, and previews or
-atomically applies the result.**
+Automated Documentation Creator and Updater.
+
+You ship at the speed of light — but your documentation does not follow. With
+Kronika, every commit impacts your documentation and you can make sure your docs
+are full of intuitive, easy-to-follow and up-to-date examples. Review your older
+documentation and make sure it is easy for your users and consistent with your
+code.
+
+Never have your docs drift away from your code.
 
 It keeps repository selection, exclusions, request signing, output confinement,
 and the final write under the operator's control. Source files are evidence, not
