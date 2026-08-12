@@ -1,12 +1,13 @@
 #!/usr/bin/env node
 
 import { BramaClient } from "./brama.js";
+import { checkDocumentation } from "./checker.js";
 import { collectSources } from "./sources.js";
-import type { WriteDocumentationOptions } from "./types.js";
+import type { CheckDocumentationOptions, WriteDocumentationOptions } from "./types.js";
 import { writeDocumentation } from "./writer.js";
 
 type ParsedArguments = {
-  command: "write" | "sources" | "help";
+  command: "check" | "write" | "sources" | "help";
   repo: string;
   output: string;
   sources: string[];
@@ -15,8 +16,11 @@ type ParsedArguments = {
   maxFileBytes: number;
   maxTokens: number;
   timeoutMs: number;
+  maxDiffBytes: number;
   apply: boolean;
   json: boolean;
+  base?: string;
+  head: string;
   instruction?: string;
 };
 
@@ -24,9 +28,11 @@ const HELP = `Kronika — source-grounded documentation writing through Brama
 
 Usage:
   kronika sources [options]
+  kronika check --base <ref> [options]
   kronika write [options]
 
 Commands:
+  check                 Audit one exact Git change against current documentation
   sources               Show the safe source manifest without calling Brama
   write                 Generate complete Markdown through Brama
 
@@ -34,11 +40,14 @@ Options:
   --repo <path>          Repository root (default: current directory)
   --output <path>        Target document inside the repository (default: README.md)
   --source <path>        Explicit source file or directory; repeatable
+  --base <ref>           Base Git commit for check (required)
+  --head <ref>           Head Git commit for check (default: HEAD)
   --instruction <text>   Additional documentation goal
   --model <selector>     Brama model selector (default: KRONIKA_MODEL or any)
   --max-input-bytes <n>  Total source budget (default: 200000)
   --max-file-bytes <n>   Per-file source limit (default: 64000)
   --max-tokens <n>       Completion token budget (default: 8000)
+  --max-diff-bytes <n>   Git diff budget for check (default: 200000)
   --timeout-ms <n>       Brama request timeout (default: 120000)
   --apply                Atomically replace the target document
   --json                 Emit a machine-readable result
@@ -50,7 +59,8 @@ Brama environment:
   WISENT_APP_AGENT_AUTH_SECRET
   KRONIKA_MODEL (optional)
 
-Without --apply, write prints the generated Markdown and does not change files.`;
+Without --apply, write prints the generated Markdown and does not change files.
+Check exits non-zero when it reports a documentation blocker.`;
 
 const positiveIntegerArgument = (flag: string, value: string | undefined): number => {
   if (value === undefined) throw new Error(`${flag} requires a value`);
@@ -63,7 +73,7 @@ const positiveIntegerArgument = (flag: string, value: string | undefined): numbe
 
 const parseArguments = (argv: string[]): ParsedArguments => {
   const first = argv[0];
-  const command = first === "write" || first === "sources" ? first : "help";
+  const command = first === "check" || first === "write" || first === "sources" ? first : "help";
   if (first === "help" || first === "--help" || first === "-h" || argv.length === 0) {
     return {
       command: "help",
@@ -75,8 +85,10 @@ const parseArguments = (argv: string[]): ParsedArguments => {
       maxFileBytes: 64_000,
       maxTokens: 8_000,
       timeoutMs: 120_000,
+      maxDiffBytes: 200_000,
       apply: false,
       json: false,
+      head: "HEAD",
     };
   }
   if (command === "help") throw new Error(`Unknown command: ${first}`);
@@ -91,14 +103,26 @@ const parseArguments = (argv: string[]): ParsedArguments => {
     maxFileBytes: 64_000,
     maxTokens: 8_000,
     timeoutMs: 120_000,
+    maxDiffBytes: 200_000,
     apply: false,
     json: false,
+    head: "HEAD",
   };
 
   for (let index = 1; index < argv.length; index += 1) {
     const flag = argv[index];
     const value = argv[index + 1];
     switch (flag) {
+      case "--base":
+        if (value === undefined) throw new Error("--base requires a value");
+        parsed.base = value;
+        index += 1;
+        break;
+      case "--head":
+        if (value === undefined) throw new Error("--head requires a value");
+        parsed.head = value;
+        index += 1;
+        break;
       case "--repo":
         if (value === undefined) throw new Error("--repo requires a value");
         parsed.repo = value;
@@ -134,6 +158,10 @@ const parseArguments = (argv: string[]): ParsedArguments => {
         break;
       case "--max-tokens":
         parsed.maxTokens = positiveIntegerArgument(flag, value);
+        index += 1;
+        break;
+      case "--max-diff-bytes":
+        parsed.maxDiffBytes = positiveIntegerArgument(flag, value);
         index += 1;
         break;
       case "--timeout-ms":
@@ -185,6 +213,10 @@ const main = async (): Promise<void> => {
     return;
   }
 
+  if (args.command === "check" && !args.base) {
+    throw new Error("check requires --base <ref>");
+  }
+
   const bramaUrl = process.env.BRAMA_URL || process.env.MODEL_ROUTER_URL;
   const agentId = process.env.WISENT_APP_AGENT_ID;
   const authSecret = process.env.WISENT_APP_AGENT_AUTH_SECRET;
@@ -198,6 +230,39 @@ const main = async (): Promise<void> => {
     authSecret,
     timeoutMs: args.timeoutMs,
   });
+  if (args.command === "check") {
+    const checkOptions: CheckDocumentationOptions = {
+      ...sourceOptions,
+      base: args.base ?? "",
+      head: args.head,
+      model: args.model,
+      maxTokens: args.maxTokens,
+      maxDiffBytes: args.maxDiffBytes,
+      ...(args.instruction ? { instruction: args.instruction } : {}),
+    };
+    const result = await checkDocumentation(checkOptions, client);
+    if (args.json) {
+      process.stdout.write(`${JSON.stringify({
+        passed: result.passed,
+        summary: result.summary,
+        findings: result.findings,
+        model: result.model ?? null,
+        baseSha: result.baseSha,
+        headSha: result.headSha,
+        changedPaths: result.changedPaths,
+        diffBytes: result.diffBytes,
+        sourceCount: result.sources.length,
+        skipped: result.skipped,
+      }, null, 2)}\n`);
+    } else {
+      process.stdout.write(`Kronika documentation check: ${result.passed ? "PASSED" : "BLOCKED"}\n${result.summary}\n`);
+      for (const finding of result.findings) {
+        process.stdout.write(`  - ${finding.severity}: ${finding.message}\n`);
+      }
+    }
+    process.exitCode = result.passed ? 0 : 1;
+    return;
+  }
   const writeOptions: WriteDocumentationOptions = {
     ...sourceOptions,
     model: args.model,

@@ -93,7 +93,8 @@ Kronika serves:
 | Local source inspection | readable repository | Implemented; no model call |
 | Documentation preview | Brama URL and scoped HMAC identity | Implemented |
 | Atomic apply | writable output within repository | Implemented with explicit flag |
-| Stable provenance/freshness store | — | Not implemented in `0.1.0` |
+| Exact Git-change documentation gate | Brama URL, scoped HMAC identity, base/head refs | Implemented |
+| Stable provenance/freshness store | — | Not implemented in `0.2.0` |
 | Hosted scheduling/review/publishing | managed service | Not implemented by this package |
 
 ## Core use cases
@@ -105,6 +106,18 @@ Kronika serves:
 - **Outcome:** `kronika sources` prints every selected file, total bytes, and
   skipped file with its reason.
 - **Boundary:** no Brama call occurs and no repository file changes.
+
+### Gate a code change against documentation
+
+- **Actor:** CI or a reviewer with scoped Brama access.
+- **Initial state:** one resolvable base commit and head commit in the selected
+  repository.
+- **Outcome:** `kronika check` audits the bounded Git diff and current
+  repository sources, emits a structured verdict, and exits non-zero for
+  concrete documentation blockers.
+- **Boundary:** internal refactors do not require documentation churn; only
+  omitted or contradictory public behavior, interfaces, configuration,
+  security boundaries, and operational contracts block.
 
 ### Preview a complete document
 
@@ -135,15 +148,15 @@ repository
    └─ byte and path bounds
              │
              ▼
- selected-source manifest + documentation instruction
+ selected-source manifest + documentation instruction or exact Git diff
              │ exact JSON body + HMAC
              ▼
            Brama
              │
-             ▼
- complete Markdown candidate
-       ├─ stdout preview (default)
-       └─ atomic in-repository replacement (--apply)
+             ├─ complete Markdown candidate
+             │    ├─ stdout preview (default)
+             │    └─ atomic in-repository replacement (--apply)
+             └─ structured documentation verdict (check)
 ```
 
 Kronika owns source selection, prompt construction, request signing, output
@@ -195,6 +208,22 @@ Automatic discovery uses
 `git ls-files --cached --others --exclude-standard`, then a bounded recursive
 scan when the path is not a Git worktree.
 
+
+### Check one exact change
+
+```bash
+kronika check \
+  --repo /path/to/project \
+  --base origin/main \
+  --head HEAD \
+  --json
+```
+
+The base and head are resolved to commit SHAs before the model call. Kronika
+refuses an unreadable or oversized diff rather than auditing truncated evidence.
+The JSON result contains the resolved SHAs, changed paths, summary, warnings,
+and blocker findings. Exit status `1` means at least one blocker.
+
 ### Generate and preview
 
 ```bash
@@ -215,6 +244,9 @@ complete replacement of the output file.
 | `--max-input-bytes <n>` | total source payload; default `200000` |
 | `--max-file-bytes <n>` | one source file; default `64000` |
 | `--max-tokens <n>` | completion budget; default `8000` |
+| `--max-diff-bytes <n>` | complete Git diff budget for `check`; default `200000` |
+| `--base <ref>` | required base commit for `check` |
+| `--head <ref>` | head commit for `check`; default `HEAD` |
 | `--timeout-ms <n>` | Brama request bound; default `120000` |
 | `--json` | machine-readable result |
 | `--apply` | atomically replace the requested output |
@@ -265,24 +297,25 @@ process.stdout.write(result.content);
   repository.
 - **Credentials:** HMAC material is a runtime secret and must never enter source,
   output, logs, or public issues.
-- **Observability:** selected/skipped source manifest, byte totals, preview,
+- **Observability:** selected/skipped source manifest, byte totals, resolved
+  base/head SHAs, changed paths, documentation findings, preview,
   machine-readable result, Brama errors, and Git diff after apply.
 - **Recovery:** preview by default; an applied file is atomically replaced and
   should be recovered through repository version control.
-- **Cost:** local inspection is free of model use; each write uses configured
-  Brama inference. Managed repository scheduling, storage, review, and publishing
-  would be separate operated costs.
+- **Cost:** local inspection is free of model use; each write or check uses
+  configured Brama inference. Managed repository scheduling, storage, review,
+  and publishing remain responsibilities of the calling pipeline.
 
 ## Project status and support
 
-- **Maturity:** public development package, version `0.1.0`.
+- **Maturity:** public development package, version `0.2.0`.
 - **Release surface:** compiled `dist`, README, and licence; no runtime npm
   dependencies.
-- **Local contract:** source selection, bounded Brama generation, preview, and
-  explicit atomic apply.
-- **Managed contract:** scheduling, review, retained versions, organization
-  search/access controls, publishing, private deployment, and SLA are not
-  provided by this repository.
+- **Local contract:** source selection, bounded Brama generation, exact
+  Git-change documentation checks, preview, and explicit atomic apply.
+- **Managed contract:** scheduling, retained versions, organization
+  search/access controls, publishing, private deployment, and SLA are provided
+  by the calling pipeline rather than this package.
 - **Issues:** [`wisent-ai/kronika`](https://github.com/wisent-ai/kronika/issues).
 - **Security and privacy:** use private GitHub Security Advisories; never attach
   private source, generated customer documents, prompts, responses, credentials,

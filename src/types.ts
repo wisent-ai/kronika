@@ -35,6 +35,37 @@ export type SourceCollection = {
   totalBytes: number;
 };
 
+export type DocumentationFinding = {
+  severity: "blocker" | "warning";
+  code: string;
+  document: string | null;
+  sourcePaths: string[];
+  message: string;
+  requiredChange: string | null;
+};
+
+export type CheckDocumentationOptions = SourceOptions & {
+  base: string;
+  head: string;
+  instruction?: string;
+  model: string;
+  maxTokens: number;
+  maxDiffBytes: number;
+};
+
+export type CheckDocumentationResult = {
+  passed: boolean;
+  summary: string;
+  findings: DocumentationFinding[];
+  model?: string;
+  baseSha: string;
+  headSha: string;
+  changedPaths: string[];
+  diffBytes: number;
+  sources: SourceDocument[];
+  skipped: SkippedSource[];
+};
+
 export type SourceOptions = {
   repo: string;
   sources?: string[];
