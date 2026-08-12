@@ -8,8 +8,9 @@ import type {
 
 export type BramaClientOptions = {
   url: string;
-  agentId: string;
-  authSecret: string;
+  apiKey: string;
+  agentId?: string;
+  authSecret?: string;
   timeoutMs?: number;
   fetchImpl?: typeof fetch;
 };
@@ -70,17 +71,21 @@ export const signedHeaders = (
 
 export class BramaClient implements CompletionClient {
   readonly #url: string;
-  readonly #agentId: string;
-  readonly #authSecret: string;
+  readonly #apiKey: string;
+  readonly #agentId: string | undefined;
+  readonly #authSecret: string | undefined;
   readonly #timeoutMs: number;
   readonly #fetch: typeof fetch;
 
   constructor(options: BramaClientOptions) {
     if (!options.url.trim()) throw new Error("Brama URL is required");
-    if (!options.agentId.trim()) throw new Error("Brama agent ID is required");
-    if (!options.authSecret) throw new Error("Brama HMAC secret is required");
+    if (!options.apiKey) throw new Error("Brama API key is required");
+    if (Boolean(options.agentId) !== Boolean(options.authSecret)) {
+      throw new Error("Brama agent ID and HMAC secret must be supplied together");
+    }
 
     this.#url = options.url.replace(/\/+$/, "");
+    this.#apiKey = options.apiKey;
     this.#agentId = options.agentId;
     this.#authSecret = options.authSecret;
     this.#timeoutMs = options.timeoutMs ?? 120_000;
@@ -98,9 +103,16 @@ export class BramaClient implements CompletionClient {
     const timeout = setTimeout(() => controller.abort(), this.#timeoutMs);
     let response: Response;
     try {
+      const headers: Record<string, string> = {
+        "content-type": "application/json",
+        authorization: `Bearer ${this.#apiKey}`,
+        ...(this.#agentId && this.#authSecret
+          ? signedHeaders(body, this.#agentId, this.#authSecret)
+          : {}),
+      };
       response = await this.#fetch(`${this.#url}/v1/chat/completions`, {
         method: "POST",
-        headers: signedHeaders(body, this.#agentId, this.#authSecret),
+        headers,
         body,
         signal: controller.signal,
       });

@@ -91,9 +91,9 @@ Kronika serves:
 |---|---|---|
 | CLI and library | Node.js 22+ | Implemented |
 | Local source inspection | readable repository | Implemented; no model call |
-| Documentation preview | Brama URL and scoped HMAC identity | Implemented |
+| Documentation preview | Brama URL and scoped bearer; optional request-signing identity | Implemented |
 | Atomic apply | writable output within repository | Implemented with explicit flag |
-| Exact Git-change documentation gate | Brama URL, scoped HMAC identity, base/head refs | Implemented |
+| Exact Git-change documentation gate | Brama URL, scoped bearer, base/head refs | Implemented |
 | Stable provenance/freshness store | — | Not implemented in `0.2.0` |
 | Hosted scheduling/review/publishing | managed service | Not implemented by this package |
 
@@ -149,7 +149,7 @@ repository
              │
              ▼
  selected-source manifest + documentation instruction or exact Git diff
-             │ exact JSON body + HMAC
+             │ scoped bearer + exact JSON body; optional HMAC
              ▼
            Brama
              │
@@ -159,9 +159,10 @@ repository
              └─ structured documentation verdict (check)
 ```
 
-Kronika owns source selection, prompt construction, request signing, output
-validation, and local replacement. Brama owns model selection and inference.
-Git and the repository remain authoritative for source and review history.
+Kronika owns source selection, prompt construction, optional request signing,
+output validation, and local replacement. Brama owns client authorization,
+model selection, and inference. Git and the repository remain authoritative
+for source and review history.
 
 ## Quick start
 
@@ -254,14 +255,18 @@ complete replacement of the output file.
 ### Brama configuration
 
 ```bash
-export BRAMA_URL=https://model-router.example.com
+export BRAMA_URL=https://brama.wisent.com
+export BRAMA_API_KEY='<runtime-injected-client-bearer>'
+# Optional when the Brama client identity is also bound to an agent:
 export WISENT_APP_AGENT_ID=kronika
-export WISENT_APP_AGENT_AUTH_SECRET='<runtime-injected-secret>'
+export WISENT_APP_AGENT_AUTH_SECRET='<runtime-injected-signing-secret>'
 export KRONIKA_MODEL=any
 ```
 
-`MODEL_ROUTER_URL` is accepted as an alias for `BRAMA_URL`. Never commit the HMAC
-secret; materialize it through the deployment's scoped secret boundary.
+`MODEL_ROUTER_URL` and `MODEL_ROUTER_TOKEN` are accepted as aliases for
+`BRAMA_URL` and `BRAMA_API_KEY`. The bearer is always required. The agent ID and
+HMAC secret are optional but must be supplied together. Never commit either
+credential; materialize them through the deployment's scoped secret boundary.
 
 ## Library API
 
@@ -270,8 +275,7 @@ import { BramaClient, writeDocumentation } from "@wisent-ai/kronika";
 
 const client = new BramaClient({
   url: process.env.BRAMA_URL!,
-  agentId: process.env.WISENT_APP_AGENT_ID!,
-  authSecret: process.env.WISENT_APP_AGENT_AUTH_SECRET!,
+  apiKey: process.env.BRAMA_API_KEY!,
 });
 
 const result = await writeDocumentation({
@@ -291,12 +295,12 @@ process.stdout.write(result.content);
 
 ## Operational model
 
-- **Configuration:** CLI/API arguments plus scoped Brama URL, identity, secret,
-  and model selector.
+- **Configuration:** CLI/API arguments plus scoped Brama URL, bearer, optional
+  request-signing identity and secret, and model selector.
 - **State:** no hosted database; output and Git history remain in the selected
   repository.
-- **Credentials:** HMAC material is a runtime secret and must never enter source,
-  output, logs, or public issues.
+- **Credentials:** bearer and optional HMAC material are runtime secrets and
+  must never enter source, output, logs, or public issues.
 - **Observability:** selected/skipped source manifest, byte totals, resolved
   base/head SHAs, changed paths, documentation findings, preview,
   machine-readable result, Brama errors, and Git diff after apply.

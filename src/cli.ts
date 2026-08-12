@@ -218,16 +218,17 @@ const main = async (): Promise<void> => {
   }
 
   const bramaUrl = process.env.BRAMA_URL || process.env.MODEL_ROUTER_URL;
+  const apiKey = process.env.BRAMA_API_KEY || process.env.MODEL_ROUTER_TOKEN;
   const agentId = process.env.WISENT_APP_AGENT_ID;
   const authSecret = process.env.WISENT_APP_AGENT_AUTH_SECRET;
   if (!bramaUrl) throw new Error("BRAMA_URL or MODEL_ROUTER_URL is required");
-  if (!agentId) throw new Error("WISENT_APP_AGENT_ID is required");
-  if (!authSecret) throw new Error("WISENT_APP_AGENT_AUTH_SECRET is required");
+  if (!apiKey) throw new Error("BRAMA_API_KEY or MODEL_ROUTER_TOKEN is required");
 
   const client = new BramaClient({
     url: bramaUrl,
-    agentId,
-    authSecret,
+    apiKey,
+    ...(agentId ? { agentId } : {}),
+    ...(authSecret ? { authSecret } : {}),
     timeoutMs: args.timeoutMs,
   });
   if (args.command === "check") {
