@@ -1,0 +1,159 @@
+{
+  "product": "stado",
+  "version": "0.7.9",
+  "sources": {
+    "stado-help": { "kind": "command", "location": "stado --help" },
+    "stado-version": { "kind": "command", "location": "stado --version" },
+    "queue-help": { "kind": "command", "location": "stado queue --help" },
+    "queue-drain-help": { "kind": "command", "location": "stado queue drain --help" },
+    "onboarding": { "kind": "file", "location": "docs/onboarding.md" }
+  },
+  "terms": [
+    { "term": "queue", "definedOn": "overview" },
+    { "term": "maintenance mode", "definedOn": "overview" },
+    { "term": "dispatching", "definedOn": "overview" },
+    { "term": "status", "definedOn": "quick-start" },
+    { "term": "drain", "definedOn": "cli-queue" }
+  ],
+  "pages": [
+    {
+      "slug": "overview",
+      "nav": "Overview",
+      "group": "Getting started",
+      "kind": "overview",
+      "title": "Stado overview",
+      "description": "What Stado is and how work moves through its queue.",
+      "sections": [
+        {
+          "title": "What Stado is",
+          "blocks": [
+            {
+              "type": "paragraph",
+              "claim": { "source": "stado-help", "evidence": "policy-controlled queue and compute control plane" },
+              "text": "Stado is a policy-controlled queue and compute control plane: you hand it a job, and it dispatches that job to a worker under the policies you set."
+            },
+            {
+              "type": "paragraph",
+              "claim": { "source": "stado-version", "evidence": "stado 0.7.9" },
+              "text": "These docs were verified against stado 0.7.9."
+            }
+          ]
+        },
+        {
+          "title": "How work moves through the queue",
+          "blocks": [
+            {
+              "type": "bullets",
+              "claim": { "source": "stado-help", "evidence": "Submit a job (or batch) to the queue" },
+              "items": [
+                "submit — Submit a job (or batch) to the queue.",
+                "status — Show job status.",
+                "results — Download job results.",
+                "queue — Maintenance mode: pause/resume dispatching, and drain the fleet."
+              ]
+            },
+            {
+              "type": "paragraph",
+              "claim": { "source": "queue-help", "evidence": "running jobs finish untouched" },
+              "text": "Maintenance mode never kills work: pausing stops dispatching and claiming, and jobs already claimed finish untouched."
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "slug": "quick-start",
+      "nav": "Quick start",
+      "group": "Getting started",
+      "kind": "quick-start",
+      "title": "Quick start",
+      "description": "From no Stado state to one completed local job.",
+      "sections": [
+        {
+          "title": "Create the minimum local configuration",
+          "blocks": [
+            {
+              "type": "code",
+              "claim": { "source": "onboarding", "evidence": "stado config init\nstado config validate" },
+              "code": { "label": "shell", "code": "stado config init\nstado config validate" }
+            },
+            {
+              "type": "paragraph",
+              "claim": { "source": "onboarding", "evidence": "`config init` never overwrites an existing file" },
+              "text": "config init prints the path to the new $HOME/.stado/config.json and never overwrites an existing file."
+            }
+          ]
+        },
+        {
+          "title": "Submit and inspect one job",
+          "blocks": [
+            {
+              "type": "code",
+              "claim": { "source": "onboarding", "evidence": "stado submit \"printf 'hello from Stado\\n'\"" },
+              "code": { "label": "shell", "code": "stado submit \"printf 'hello from Stado\\n'\"\nstado status <job-id>\nstado results <job-id> ./stado-result" }
+            },
+            {
+              "type": "paragraph",
+              "claim": { "source": "onboarding", "evidence": "status progresses from queued or running to completed" },
+              "text": "The status progresses from queued or running to completed, and the downloaded output contains hello from Stado."
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "slug": "cli-queue",
+      "nav": "stado queue",
+      "group": "CLI reference",
+      "kind": "cli-reference",
+      "title": "stado queue",
+      "description": "Maintenance mode: pause or resume dispatching, and drain the fleet.",
+      "sections": [
+        {
+          "title": "Subcommands",
+          "blocks": [
+            {
+              "type": "paragraph",
+              "claim": { "source": "queue-help", "evidence": "Maintenance mode: pause/resume dispatching, and drain the fleet" },
+              "text": "stado queue owns maintenance mode for the fleet: it can pause or resume dispatching, and drain running work to zero."
+            },
+            {
+              "type": "table",
+              "claim": { "source": "queue-help", "evidence": "Stop dispatching and claiming; running jobs finish untouched" },
+              "table": {
+                "caption": "stado queue subcommands",
+                "columns": ["Subcommand", "What it does"],
+                "rows": [
+                  ["stado queue pause", "Stop dispatching and claiming; running jobs finish untouched"],
+                  ["stado queue resume", "Resume dispatching and claiming"],
+                  ["stado queue status", "Pause state plus how much work is queued and still running"],
+                  ["stado queue drain", "Pause, then (with --wait) block until no job is running any more"]
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "title": "Draining the fleet",
+          "blocks": [
+            {
+              "type": "code",
+              "claim": { "source": "queue-drain-help", "evidence": "Wait for running/ to empty instead of returning immediately" },
+              "code": { "label": "shell", "code": "stado queue drain --wait --timeout 900" }
+            },
+            {
+              "type": "paragraph",
+              "claim": { "source": "queue-drain-help", "evidence": "Exits non-zero if it elapses with jobs still running [default: 900]" },
+              "text": "--timeout is the deadline for --wait, in seconds; drain exits non-zero if the deadline elapses with jobs still running. The default is 900 seconds."
+            },
+            {
+              "type": "callout",
+              "claim": { "source": "queue-help", "evidence": "running jobs finish untouched" },
+              "callout": { "title": "Running jobs are safe", "tone": "note", "text": "Pausing stops dispatching and claiming only; running jobs finish untouched." }
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}
