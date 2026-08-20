@@ -1,11 +1,13 @@
 [automation]
 managed = true
-source_fingerprint = "490bb06d6fe9443b"
+source_fingerprint = "71939499631359eb"
 category = "developer"
+copy_status = "approved"
+approved_in = "019fe3db-84a1-7000-bf79-c5455aefd43f@2026-08-09T23:59:29Z"
 
 [banner]
-title = "Write documentation from repository evidence."
-description = "Local writer that selects bounded source evidence and uses Brama to produce Markdown."
+title = "Kronika: Perfect Documentation Built Only from Repository Truth"
+description = ""
 product = "Wisent"
 url = "wisent.com"
 theme = "dark"
