@@ -8,7 +8,6 @@ import path from "node:path";
 import { detect } from "./detect.mjs";
 import { runValidators } from "./validate.mjs";
 import { authorPlan } from "./author.mjs";
-import { judgePlan, loadRubric, skippedReport } from "./judge.mjs";
 import { emitPlan } from "./emit.mjs";
 import { expandPath, readJson, printReport, isMain, resolveEndpoint, InfraDownError } from "./lib.mjs";
 
@@ -19,14 +18,14 @@ async function main() {
       sources: { type: "string" },
       plan: { type: "string" },
       out: { type: "string" },
-      "skip-judge": { type: "boolean", default: false },
+
       model: { type: "string", default: "default" },
     },
   });
   if (positionals.length !== 1 || !values.sources) {
     printReport({
       error: "usage",
-      detail: "node src/run.mjs <productRepo> --sources <file> [--plan <file>] [--out <dir>] [--skip-judge]",
+      detail: "node src/run.mjs <productRepo> --sources <file> [--plan <file>] [--out <dir>]",
     });
     process.exit(2);
   }
@@ -75,26 +74,8 @@ async function main() {
   stages.push({ stage: "validate", ok: validation.ok, report: validation });
   if (!validation.ok) finish(false);
 
-  // 4. judge
-  if (values["skip-judge"]) {
-    stages.push({ stage: "judge", ok: true, ...skippedReport("requested by --skip-judge") });
-  } else {
-    const endpoint = resolveEndpoint();
-    try {
-      const verdict = await judgePlan({ plan, rubric: loadRubric(), model: values.model, endpoint });
-      stages.push({ stage: "judge", ...verdict });
-      if (!verdict.ok) finish(false);
-    } catch (e) {
-      if (e instanceof InfraDownError) {
-        stages.push({ stage: "judge", ok: false, error: "infra_down", detail: e.message, endpoint: e.endpoint, resolvedVia: endpoint.via });
-        finish(false, 69);
-      }
-      stages.push({ stage: "judge", ok: false, error: "judge_failed", detail: e.message });
-      finish(false);
-    }
-  }
 
-  // 5. emit
+  // 4. emit
   if (values.out) {
     const outDir = expandPath(values.out);
     const { docPages, docsNav, module } = emitPlan(plan);

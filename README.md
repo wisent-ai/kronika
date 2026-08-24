@@ -340,7 +340,7 @@ the model is deterministic and verifiable.
 | Surface detection | [`pipeline/src/detect.mjs`](pipeline/src/detect.mjs) | `brief.json` — computed from the product repo, not decided by anyone |
 | Plan authoring | model via Brama | `plan.json` conforming to [`pipeline/schemas/plan.schema.json`](pipeline/schemas/plan.schema.json) |
 | Validation | [`pipeline/src/validate.mjs`](pipeline/src/validate.mjs) | pass/fail per validator, machine-readable report |
-| Rubric judgment | second model via Brama | quality score above the mechanical floor |
+| Writing standard | [`pipeline/WRITING-STANDARD.md`](pipeline/WRITING-STANDARD.md), distilled from the 50-reference evidence set and the restored human corpus | injected into the authoring prompt |
 | Emission | [`pipeline/src/emit.mjs`](pipeline/src/emit.mjs) | `DocPage` data module for `DocumentationLayout` |
 | Publication | consumer site CI | deploy only on all-green |
 
@@ -355,8 +355,14 @@ kind exists to choose), and **coverage** (every completion-gate kind that
 Commands: `npm run docs:detect` · `npm run docs:validate` · `npm run docs:emit`
 (or the `docs-cli` binary). Model access resolves through Brama only —
 `BRAMA_URL`, then the local Stado resolver's brama adapter; there is no
-provider fallback. Honest state: the judge rubric is a stub until a docs rubric
-exists in Probierz; the mechanical validators carry the gate today.
+provider fallback. There is no quality judge and no scoring step: the
+writing standard is what the author reads, the mechanical validators are
+what the build enforces, and publication follows the consuming site's CI.
+
+The writing standard itself was written by reading exactly its two named
+sources — the 50-reference evidence set in Spis and our own previous
+documentation (the restored February corpus). When either source changes,
+the standard changes with it.
 
 The writing standard for everything this pipeline produces is the operator's
 restored human-written corpus (the February 2026 Wisent documentation, now

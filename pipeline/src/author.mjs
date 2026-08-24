@@ -12,9 +12,9 @@ import {
 } from "./lib.mjs";
 
 const SCHEMA_PATH = new URL("../schemas/plan.schema.json", import.meta.url);
+const STANDARD_PATH = new URL("../WRITING-STANDARD.md", import.meta.url);
 
 const WRITING_CONTRACT = `You author a documentation content plan as a single JSON document.
-Rules (each is mechanically validated; violations fail the build):
 - Emit ONLY JSON conforming exactly to the schema below. No markdown, no fences, no prose outside the JSON.
 - Page kinds are closed. Never invent a page type or a structural convention that is not in the schema.
 - Every content block MUST carry a claim: a source name from plan.sources plus an evidence string that occurs VERBATIM in that source (or a regex with evidenceIsRegex true). Never attach evidence post-hoc; copy it from the source excerpts you were given.
@@ -62,9 +62,10 @@ function extractJson(content) {
 /** Throws InfraDownError when Brama is unreachable. */
 export async function authorPlan({ brief, sources, repo, model = "default", endpoint = resolveEndpoint() }) {
   const schema = readFileSync(SCHEMA_PATH, "utf8");
+  const standard = readFileSync(STANDARD_PATH, "utf8");
   const excerpts = await collectExcerpts(sources, brief, repo);
   const messages = [
-    { role: "system", content: `${WRITING_CONTRACT}\n\nThe plan JSON Schema:\n${schema}` },
+    { role: "system", content: `${WRITING_CONTRACT}\n\nThe writing standard (how pages must read and behave; follow it exactly):\n${standard}\n\nThe plan JSON Schema:\n${schema}` },
     {
       role: "user",
       content:
