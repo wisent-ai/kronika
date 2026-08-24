@@ -1,6 +1,9 @@
 #!/usr/bin/env node
 // Rubric judgment: a second model scores the plan against rubric/rubric.json
-// (five binary lines; a stub until a docs rubric exists in Probierz).
+// (docs-plan-rubric.v1 — twenty binary lines derived from
+// product-guidelines/documentation-guidelines.md, the restored human corpus,
+// and the 50-reference evidence set; mechanical validators carry claims,
+// drift, terms, structure and coverage).
 // Same endpoint resolution and infra semantics as author.mjs. --skip records
 // "judge skipped: <reason>" instead of failing the pipeline.
 import { parseArgs } from "node:util";

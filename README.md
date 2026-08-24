@@ -355,8 +355,12 @@ kind exists to choose), and **coverage** (every completion-gate kind that
 Commands: `npm run docs:detect` · `npm run docs:validate` · `npm run docs:emit`
 (or the `docs-cli` binary). Model access resolves through Brama only —
 `BRAMA_URL`, then the local Stado resolver's brama adapter; there is no
-provider fallback. Honest state: the judge rubric is a stub until a docs rubric
-exists in Probierz; the mechanical validators carry the gate today.
+provider fallback. Honest state: the judge rubric is real and derived —
+twenty binary lines distilled from documentation-guidelines.md, the restored
+human corpus, and the 50-reference evidence set (`pipeline/rubric/rubric.json`,
+`docs-plan-rubric.v1`) — but it has not yet been calibration-run against
+Probierz-scored examples; until then a skipped judge is recorded as a named
+gap, and the mechanical validators carry the gate today.
 
 The writing standard for everything this pipeline produces is the operator's
 restored human-written corpus (the February 2026 Wisent documentation, now

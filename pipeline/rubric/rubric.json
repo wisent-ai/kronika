@@ -1,11 +1,31 @@
 {
-  "rubric": "docs-plan-rubric.v0-stub",
-  "note": "Stub until a docs rubric exists in Probierz; the mechanical validators carry the gate today. Each line is binary: pass or fail.",
+  "rubric": "docs-plan-rubric.v1",
+  "derived_from": [
+    "product-guidelines/documentation-guidelines.md (@45f6775) — the reviewable contract",
+    "The restored human-written Wisent corpus (wisent-landing-new@ff59cf6, live at ster.wisent.com/docs) — the writing exemplar",
+    "documentation-site-examples: 50 references + content-structure dataset (~941k URLs, 647-page anatomy)"
+  ],
+  "note": "Judgment layer only: these lines score qualities the mechanical validators cannot see (ordering, voice, framing, pairing). Claims, drift, terms, structure and coverage stay mechanical. Every line is binary: pass or fail.",
   "lines": [
-    { "id": "lede-outcome", "check": "The overview page's first paragraph states the outcome the reader gets, not the implementation." },
-    { "id": "general-to-specific", "check": "Within every page, sections are ordered general to specific." },
-    { "id": "code-before-discussion", "check": "Every code block appears before the prose that discusses it, never after." },
-    { "id": "no-orphan-references", "check": "No orphan reference entries: every reference page is reachable from a mention on at least one guide page (overview, quick-start, or task-guide)." },
-    { "id": "support-last", "check": "Support content, when present, comes last in the page order." }
+    { "id": "lede-outcome", "check": "The overview page's first paragraph states the outcome the reader gets, not the implementation.", "source": "guidelines §2.1; corpus overview" },
+    { "id": "general-to-specific", "check": "Within every page, sections are ordered general to specific.", "source": "corpus ordering practice" },
+    { "id": "code-before-discussion", "check": "Every code block appears before the prose that discusses it, never after.", "source": "guidelines §3" },
+    { "id": "quick-start-single-path", "check": "Quick start is one linear paste-ready path that ends in one observable result, with no branching before that result.", "source": "guidelines §2.2; corpus quick-start script pattern" },
+    { "id": "task-guides-named-by-task", "check": "Every task-guide slug and title names the reader's task (verb + object, e.g. 'Ship a release'), never a feature noun.", "source": "corpus task-guide naming" },
+    { "id": "concepts-defined-before-use", "check": "Every term declared in plan.terms is defined on its defining page, and pages that use the term appear after that defining page in nav order.", "source": "guidelines terms rule; the 'fleet was never defined' defect" },
+    { "id": "reference-anatomy-uniform", "check": "Every cli-reference, api-reference, config-reference and sdk-reference entry follows the same anatomy in the same order (usage block, argument table, then variants/examples).", "source": "guidelines §2.6–2.9" },
+    { "id": "tables-for-enumerables", "check": "Enumerable facts — flags, defaults, error codes, limit values — appear in table blocks, never in running prose.", "source": "guidelines §3" },
+    { "id": "callouts-carry-asides", "check": "Callout blocks carry warnings, gotchas and tips only; primary instructions never hide inside a callout.", "source": "guidelines §3; corpus callouts" },
+    { "id": "steps-imperative", "check": "Every step-list item is one imperative action addressed to the reader.", "source": "corpus step lists" },
+    { "id": "no-marketing-register", "check": "No block contains marketing register — superlatives, hype adjectives, or claims about being fastest/best/most advanced.", "source": "guidelines: docs are not marketing" },
+    { "id": "audience-per-page", "check": "Each page addresses one consistent reader level; beginner and advanced material are separate pages, not interleaved sections.", "source": "corpus audience separation" },
+    { "id": "cross-links-explicit", "check": "Guide-to-reference pointers name the target page's title explicitly in prose (the layout renders plain text; there are no inline links to rely on).", "source": "guidelines §3 cross-linking bullet" },
+    { "id": "security-lives-inline", "check": "Security statements appear on the page of the surface they concern; nothing security-relevant is collected onto an arbitrary page.", "source": "guidelines §2.14" },
+    { "id": "limits-with-numbers", "check": "Every limits block states concrete numbers with units and where each limit is set; no limit is described without its value.", "source": "guidelines §2.15" },
+    { "id": "changelog-user-visible", "check": "Changelog entries describe user-visible changes only, one condensed bullet each, in the changelog's own section names.", "source": "guidelines §2.10; corpus changelog page" },
+    { "id": "migration-pairs-removal", "check": "Every removed-or-changed behavior mention pairs with what replaces it and what the reader should run instead; no orphan removals.", "source": "guidelines §2.11; corpus migration page" },
+    { "id": "support-last", "check": "Support content, when present, comes last in the page order.", "source": "guidelines §2.16" },
+    { "id": "optional-kinds-honest", "check": "Optional kinds (faq, contributing, roadmap, versions) appear only where the plan's own claims provide sourced material for every entry.", "source": "guidelines optional-kinds rule" },
+    { "id": "title-voice-matches-corpus", "check": "Guide and concept titles state outcomes in corpus voice ('One queue, one registry, one answer.'); reference titles are plain noun phrases of the surface they document.", "source": "corpus title voice" }
   ]
 }
