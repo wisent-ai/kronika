@@ -2,18 +2,20 @@
   "name": "@wisent-ai/kronika",
   "version": "0.2.0",
   "private": false,
-  "description": "Source-grounded documentation writer backed by Brama",
+  "description": "Source-grounded documentation writer and documentation-site pipeline backed by Brama",
   "license": "SEE LICENSE IN LICENSE",
   "repository": "https://github.com/wisent-ai/kronika",
   "type": "module",
   "bin": {
-    "kronika": "dist/src/cli.js"
+    "kronika": "dist/src/cli.js",
+    "docs-cli": "pipeline/src/run.mjs"
   },
   "exports": {
     ".": "./dist/src/index.js"
   },
   "files": [
     "dist",
+    "pipeline",
     "LICENSE",
     "README.md"
   ],
@@ -21,7 +23,10 @@
     "node": ">=22"
   },
   "scripts": {
-    "build": "tsc -p tsconfig.json"
+    "build": "tsc -p tsconfig.json",
+    "docs:detect": "node pipeline/src/detect.mjs",
+    "docs:validate": "node pipeline/src/validate.mjs",
+    "docs:emit": "node pipeline/src/emit.mjs"
   },
   "devDependencies": {
     "@types/node": "^22.15.0",

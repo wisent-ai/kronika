@@ -1,0 +1,8 @@
+{
+  "product": "stado",
+  "binary": "~/.local/bin/stado",
+  "docs": {
+    "onboarding": "docs/onboarding.md",
+    "cli": "docs/cli.md"
+  }
+}

@@ -1,0 +1,12 @@
+{
+  "product": "stado",
+  "binary": "~/.local/bin/stado",
+  "changelog": "CHANGELOG.md",
+  "config": "docs/configuration.md",
+  "routes": "stado-rs/src/dashboard/mod.rs",
+  "limits": "config/quotas.json",
+  "docs": {
+    "onboarding": "docs/onboarding.md",
+    "cli": "docs/cli.md"
+  }
+}
