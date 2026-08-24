@@ -1,0 +1,45 @@
+{
+  "schemaVersion": 1,
+  "documents": [
+    {
+      "output": "docs/what-is-kronika.md",
+      "sources": ["src", "README.md"],
+      "instruction": "Keep the three-part mental model true to src/: selection boundary, one Brama call, sync memory."
+    },
+    {
+      "output": "docs/quick-start.md",
+      "sources": ["src", "package.json", "README.md"],
+      "instruction": "One happy path from clone to a reconciled document; every command and flag must exist in src/cli.ts."
+    },
+    {
+      "output": "docs/cli.md",
+      "sources": ["src", "README.md"],
+      "instruction": "Complete command, flag, default, output-shape, and exit-code reference for src/cli.ts."
+    },
+    {
+      "output": "docs/sync.md",
+      "sources": ["src", "README.md"],
+      "instruction": "The sync state machine exactly as src/sync.ts implements it: manifest, state, baseline before generation, passing audit is the update."
+    },
+    {
+      "output": "docs/sources.md",
+      "sources": ["src", "README.md"],
+      "instruction": "Selection, exclusion, ordering, budget, and confinement rules exactly as src/sources.ts implements them."
+    },
+    {
+      "output": "docs/configuration.md",
+      "sources": ["src", ".env.example", "README.md"],
+      "instruction": "Environment variables, the Brama request contract, and budgets as src/cli.ts and src/brama.ts read them; never include credential values."
+    },
+    {
+      "output": "docs/library.md",
+      "sources": ["src", "package.json", "README.md"],
+      "instruction": "Every documented export must exist in src/index.ts."
+    },
+    {
+      "output": "docs/site-pipeline.md",
+      "sources": ["pipeline", "package.json", "README.md"],
+      "instruction": "The docs-cli pipeline stages, validators, endpoint resolution, and exit codes as pipeline/src implements them."
+    }
+  ]
+}
