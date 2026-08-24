@@ -51,6 +51,10 @@ export type CheckDocumentationOptions = SourceOptions & {
   model: string;
   maxTokens: number;
   maxDiffBytes: number;
+  /** Git pathspecs the audited diff is restricted to; empty audits the whole
+   * range. Sync passes the document's declared sources here so one drifted
+   * document is never blocked by the size of unrelated changes. */
+  diffPaths?: string[];
 };
 
 export type CheckDocumentationResult = {

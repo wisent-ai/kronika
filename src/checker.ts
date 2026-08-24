@@ -61,14 +61,20 @@ const resolveCommit = (repo: string, ref: string): string => {
   }
 };
 
-const repositoryChange = (repo: string, base: string, head: string, maxDiffBytes: number): RepositoryChange => {
+const repositoryChange = (
+  repo: string,
+  base: string,
+  head: string,
+  maxDiffBytes: number,
+  diffPaths: string[],
+): RepositoryChange => {
   const baseSha = resolveCommit(repo, base);
   const headSha = resolveCommit(repo, head);
   let names: string;
   let patch: string;
   try {
-    names = git(repo, ["diff", "--name-status", "--find-renames", `${baseSha}...${headSha}`, "--"]);
-    patch = git(repo, ["diff", "--unified=40", "--no-ext-diff", "--no-color", "--find-renames", `${baseSha}...${headSha}`, "--"]);
+    names = git(repo, ["diff", "--name-status", "--find-renames", `${baseSha}...${headSha}`, "--", ...diffPaths]);
+    patch = git(repo, ["diff", "--unified=40", "--no-ext-diff", "--no-color", "--find-renames", `${baseSha}...${headSha}`, "--", ...diffPaths]);
   } catch {
     throw new Error(`Git diff cannot be read for ${baseSha}...${headSha}`);
   }
@@ -173,7 +179,7 @@ export const checkDocumentation = async (
   if (!Number.isSafeInteger(options.maxDiffBytes) || options.maxDiffBytes <= 0) throw new Error("Diff byte limit must be a positive integer");
   const repo = resolve(options.repo);
   const collection = collectSources(options);
-  const change = repositoryChange(repo, options.base, options.head, options.maxDiffBytes);
+  const change = repositoryChange(repo, options.base, options.head, options.maxDiffBytes, options.diffPaths ?? []);
   const completion = await client.complete({
     model: options.model,
     maxTokens: options.maxTokens,

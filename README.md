@@ -28,10 +28,11 @@ instructions to the model.
 [Library API](#library-api) ·
 [Canonical repository](https://github.com/wisent-ai/kronika)
 
-Version `0.1.0` is public development source. The current package generates one
-local document at a time; scheduled multi-repository synchronization, team
-review, retained versions, organization search, and supported publishing are
-separate future managed-service boundaries, not capabilities of this package.
+Version `0.2.0` is public development source. The package generates one local
+document at a time and reconciles a manifest of documents per repository
+(`kronika sync`); multi-repository orchestration, team review, retained
+versions, organization search, and supported publishing are separate future
+managed-service boundaries, not capabilities of this package.
 
 ## Problem and intended users
 
@@ -238,6 +239,42 @@ kronika write \
 
 Add `--apply` only after confirming the selected source boundary and accepting a
 complete replacement of the output file.
+
+### Keep a repository's documentation reconciled
+
+```bash
+kronika sync --repo /path/to/project --commit --push
+```
+
+Sync reads `kronika.sync.json` — the human's declaration of which documents
+are maintained from which evidence:
+
+```json
+{
+  "schemaVersion": 1,
+  "documents": [
+    {
+      "output": "docs/operations.md",
+      "sources": ["src/deploy", "src/monitor"],
+      "instruction": "Operator documentation; keep the existing section order."
+    }
+  ]
+}
+```
+
+and records the last reconciled commit per document in
+`kronika.sync-state.json`, committed beside it. Each run does only the work
+the evidence demands: a document's first run records a baseline and generates
+nothing; a run whose declared sources did not change advances nothing and
+calls no model; a drifted document is audited (`check`) over a diff
+restricted to its declared sources, and a passing audit IS the update — the
+state advances without churn. Only an audit with blocker findings triggers a
+rewrite (`write --apply`), instructed with those findings so the rewrite
+corrects named defects instead of re-authoring reviewed text. `--dry-run`
+audits without writing a file or the state; `--commit`/`--push` land the
+reconciliation, so a scheduler (cron, launchd, `stado schedule`) can run the
+same command forever and documentation follows the repository by itself.
+Exit status `1` means at least one document failed to reconcile.
 
 | Option | Purpose |
 |---|---|

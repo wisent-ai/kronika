@@ -1,13 +1,16 @@
 #!/usr/bin/env node
 
+import { execFileSync } from "node:child_process";
+
 import { BramaClient } from "./brama.js";
 import { checkDocumentation } from "./checker.js";
 import { collectSources } from "./sources.js";
 import type { CheckDocumentationOptions, WriteDocumentationOptions } from "./types.js";
 import { writeDocumentation } from "./writer.js";
+import { syncDocumentation } from "./sync.js";
 
 type ParsedArguments = {
-  command: "check" | "write" | "sources" | "help";
+  command: "check" | "write" | "sources" | "sync" | "help";
   repo: string;
   output: string;
   sources: string[];
@@ -22,6 +25,11 @@ type ParsedArguments = {
   base?: string;
   head: string;
   instruction?: string;
+  manifest: string;
+  state: string;
+  dryRun: boolean;
+  commit: boolean;
+  push: boolean;
 };
 
 const HELP = `Kronika — source-grounded documentation writing through Brama
@@ -30,11 +38,15 @@ Usage:
   kronika sources [options]
   kronika check --base <ref> [options]
   kronika write [options]
+  kronika sync [options]
 
 Commands:
   check                 Audit one exact Git change against current documentation
   sources               Show the safe source manifest without calling Brama
   write                 Generate complete Markdown through Brama
+  sync                  Reconcile every manifest-declared document with the
+                        repository: audit drifted ones, rewrite only audited
+                        defects, and record the reconciled commit
 
 Options:
   --repo <path>          Repository root (default: current directory)
@@ -50,6 +62,11 @@ Options:
   --max-diff-bytes <n>   Git diff budget for check (default: 200000)
   --timeout-ms <n>       Brama request timeout (default: 120000)
   --apply                Atomically replace the target document
+  --manifest <path>      Sync manifest inside the repository (default: kronika.sync.json)
+  --state <path>         Sync state file inside the repository (default: kronika.sync-state.json)
+  --dry-run              Sync: report and audit, but write no file and no state
+  --commit               Sync: commit rewritten documents and the state file
+  --push                 Sync: push the sync commit
   --json                 Emit a machine-readable result
   -h, --help             Show this help
 
@@ -60,7 +77,10 @@ Brama environment:
   KRONIKA_MODEL (optional)
 
 Without --apply, write prints the generated Markdown and does not change files.
-Check exits non-zero when it reports a documentation blocker.`;
+Check exits non-zero when it reports a documentation blocker.
+Sync's first run for a document records a baseline and generates nothing;
+every later run audits only documents whose declared sources changed, and
+exits non-zero when any document failed to reconcile.`;
 
 const positiveIntegerArgument = (flag: string, value: string | undefined): number => {
   if (value === undefined) throw new Error(`${flag} requires a value`);
@@ -73,7 +93,9 @@ const positiveIntegerArgument = (flag: string, value: string | undefined): numbe
 
 const parseArguments = (argv: string[]): ParsedArguments => {
   const first = argv[0];
-  const command = first === "check" || first === "write" || first === "sources" ? first : "help";
+  const command = first === "check" || first === "write" || first === "sources" || first === "sync"
+    ? first
+    : "help";
   if (first === "help" || first === "--help" || first === "-h" || argv.length === 0) {
     return {
       command: "help",
@@ -89,6 +111,11 @@ const parseArguments = (argv: string[]): ParsedArguments => {
       apply: false,
       json: false,
       head: "HEAD",
+      manifest: "kronika.sync.json",
+      state: "kronika.sync-state.json",
+      dryRun: false,
+      commit: false,
+      push: false,
     };
   }
   if (command === "help") throw new Error(`Unknown command: ${first}`);
@@ -107,6 +134,11 @@ const parseArguments = (argv: string[]): ParsedArguments => {
     apply: false,
     json: false,
     head: "HEAD",
+    manifest: "kronika.sync.json",
+    state: "kronika.sync-state.json",
+    dryRun: false,
+    commit: false,
+    push: false,
   };
 
   for (let index = 1; index < argv.length; index += 1) {
@@ -167,6 +199,25 @@ const parseArguments = (argv: string[]): ParsedArguments => {
       case "--timeout-ms":
         parsed.timeoutMs = positiveIntegerArgument(flag, value);
         index += 1;
+        break;
+      case "--manifest":
+        if (value === undefined) throw new Error("--manifest requires a value");
+        parsed.manifest = value;
+        index += 1;
+        break;
+      case "--state":
+        if (value === undefined) throw new Error("--state requires a value");
+        parsed.state = value;
+        index += 1;
+        break;
+      case "--dry-run":
+        parsed.dryRun = true;
+        break;
+      case "--commit":
+        parsed.commit = true;
+        break;
+      case "--push":
+        parsed.push = true;
         break;
       case "--apply":
         parsed.apply = true;
@@ -231,6 +282,57 @@ const main = async (): Promise<void> => {
     ...(authSecret ? { authSecret } : {}),
     timeoutMs: args.timeoutMs,
   });
+
+  if (args.command === "sync") {
+    const result = await syncDocumentation(
+      {
+        repo: args.repo,
+        manifestPath: args.manifest,
+        statePath: args.state,
+        dryRun: args.dryRun,
+        defaults: {
+          model: args.model,
+          maxTokens: args.maxTokens,
+          maxInputBytes: args.maxInputBytes,
+          maxFileBytes: args.maxFileBytes,
+          maxDiffBytes: args.maxDiffBytes,
+        },
+      },
+      client,
+    );
+    const rewritten = result.outcomes.filter((outcome) => outcome.action === "rewritten");
+    const failed = result.outcomes.filter((outcome) => outcome.action === "failed");
+    let committed = false;
+    if (args.commit && !args.dryRun && (rewritten.length > 0 || result.stateWritten)) {
+      const paths = [...rewritten.map((outcome) => outcome.output), args.state];
+      execFileSync("git", ["-C", args.repo, "add", "--", ...paths], { stdio: "inherit" });
+      const subject = rewritten.length > 0
+        ? `kronika sync: reconcile ${rewritten.map((outcome) => outcome.output).join(", ")}`
+        : "kronika sync: advance documentation baselines";
+      execFileSync("git", ["-C", args.repo, "commit", "-m", subject], { stdio: "inherit" });
+      committed = true;
+      if (args.push) {
+        execFileSync("git", ["-C", args.repo, "push"], { stdio: "inherit" });
+      }
+    }
+    if (args.json) {
+      process.stdout.write(`${JSON.stringify({
+        headSha: result.headSha,
+        dryRun: args.dryRun,
+        committed,
+        stateWritten: result.stateWritten,
+        outcomes: result.outcomes,
+      }, null, 2)}\n`);
+    } else {
+      process.stdout.write(`Kronika sync at ${result.headSha.slice(0, 12)}${args.dryRun ? " (dry run)" : ""}\n`);
+      for (const outcome of result.outcomes) {
+        process.stdout.write(`  ${outcome.action.padEnd(15)} ${outcome.output} — ${outcome.detail}\n`);
+      }
+      if (committed) process.stdout.write(`  committed${args.push ? " and pushed" : ""}\n`);
+    }
+    process.exitCode = failed.length > 0 ? 1 : 0;
+    return;
+  }
   if (args.command === "check") {
     const checkOptions: CheckDocumentationOptions = {
       ...sourceOptions,
