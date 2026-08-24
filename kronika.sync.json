@@ -9,7 +9,7 @@
     {
       "output": "docs/quick-start.md",
       "sources": ["src", "package.json", "README.md"],
-      "instruction": "One happy path from clone to a reconciled document; every command and flag must exist in src/cli.ts."
+      "instruction": "One happy path from clone to a reconciled document; every command and flag must exist in src/cli.ts, and captured console output must never be fabricated — only replaced with freshly captured output."
     },
     {
       "output": "docs/cli.md",
@@ -40,6 +40,76 @@
       "output": "docs/site-pipeline.md",
       "sources": ["pipeline", "package.json", "README.md"],
       "instruction": "The docs-cli pipeline stages, validators, endpoint resolution, and exit codes as pipeline/src implements them."
+    },
+    {
+      "output": "docs/architecture.md",
+      "sources": ["src", "pipeline/src", "README.md"],
+      "instruction": "What Kronika owns, what it does not, data flow, and trust boundaries; every boundary claim must be traceable to src/ or pipeline/src."
+    },
+    {
+      "output": "docs/runbook.md",
+      "sources": ["src", "pipeline/src"],
+      "instruction": "Every error sentence in src/ (and the docs-cli exit codes), quoted exactly, with meaning and fix; remove sentences that leave the source, add ones that enter it."
+    },
+    {
+      "output": "docs/concepts/source-collection.md",
+      "sources": ["src/sources.ts", "src/writer.ts", "src/types.ts"],
+      "instruction": "The SourceCollection noun: shape, lifecycle, invariants, and exact refusal sentences from src/sources.ts."
+    },
+    {
+      "output": "docs/concepts/audit.md",
+      "sources": ["src/checker.ts", "src/types.ts"],
+      "instruction": "The audit noun: exact range resolution, verdict contract, and refusal sentences as src/checker.ts implements them."
+    },
+    {
+      "output": "docs/concepts/check.md",
+      "sources": ["src/cli.ts", "src/checker.ts", "src/types.ts"],
+      "instruction": "The check noun: the gate verb over one audit — required --base, three-dot range, unrestricted diff scope, output shapes, the never-fails-open exit contract, and the exact refusal sentences; captured console output must never be fabricated."
+    },
+    {
+      "output": "docs/concepts/finding.md",
+      "sources": ["src/checker.ts", "src/sync.ts", "src/types.ts"],
+      "instruction": "The finding noun: field-by-field shape and validation sentences, and the rewrite brief format blockers are compiled into."
+    },
+    {
+      "output": "docs/concepts/blocker-vs-warning.md",
+      "sources": ["src/checker.ts", "src/sync.ts", "src/cli.ts"],
+      "instruction": "The severity axis: the system-prompt standard, what blockers and warnings each do in check and sync, and the two mechanical enforcement sentences; captured console output must never be fabricated."
+    },
+    {
+      "output": "docs/concepts/manifest.md",
+      "sources": ["src/sync.ts"],
+      "instruction": "The sync manifest noun: schema, per-entry fields and overrides, lifecycle, and the exact loadSyncManifest refusal sentences."
+    },
+    {
+      "output": "docs/concepts/state.md",
+      "sources": ["src/sync.ts"],
+      "instruction": "The sync state noun: entry shape, when the file is written and committed, recovery by deletion, and the exact loadSyncState refusal sentences."
+    },
+    {
+      "output": "docs/concepts/baseline.md",
+      "sources": ["src/sync.ts"],
+      "instruction": "The baseline noun: the action table, baseline-before-generation, advancing without churn, failure keeping the range; captured console output must never be fabricated."
+    },
+    {
+      "output": "docs/concepts/drift.md",
+      "sources": ["src/sync.ts", "src/checker.ts"],
+      "instruction": "The drift noun: the exact git diff question, pathspec restriction including the output itself, and why drift is not a verdict."
+    },
+    {
+      "output": "docs/walkthrough-check.md",
+      "sources": ["src"],
+      "instruction": "A gating walkthrough whose transcripts were captured by actually running the CLI; update commands and sentences to match src/, but never fabricate console output — stale captures must be re-captured, not invented."
+    },
+    {
+      "output": "docs/walkthrough-sync-cycle.md",
+      "sources": ["src"],
+      "instruction": "A full sync-cycle walkthrough whose transcripts were captured by actually running the CLI; update commands and sentences to match src/, but never fabricate console output — stale captures must be re-captured, not invented."
+    },
+    {
+      "output": "docs/examples/README.md",
+      "sources": ["src/cli.ts", "docs/examples"],
+      "instruction": "Index of the runnable example scripts; every command and flag named must exist in src/cli.ts and every listed script must exist in docs/examples/."
     }
   ]
 }

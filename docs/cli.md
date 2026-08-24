@@ -11,12 +11,20 @@ kronika sync [options]
 
 `kronika` with no arguments, `help`, `-h`, or `--help` prints usage. An
 unknown command or option is an error. Every error is written to stderr as
-`kronika: <message>` with exit status `1`.
+`kronika: <message>` with exit status `1`; the complete sentence inventory,
+with what each means, is the [runbook](runbook.md).
 
 `sources` reads no Brama configuration. `check`, `write`, and `sync` require
 `BRAMA_URL` (or `MODEL_ROUTER_URL`) and `BRAMA_API_KEY` (or
 `MODEL_ROUTER_TOKEN`) in the environment; see
 [configuration](configuration.md).
+
+| Command | Exit `0` | Exit `1` |
+|---|---|---|
+| `sources` | manifest printed | selection refused (outside repo, symlink, missing path) |
+| `check` | audit passed — no blockers | blockers found, or any failure |
+| `write` | preview printed / document applied | any failure |
+| `sync` | every document reconciled | any `failed` outcome, or any failure |
 
 ## Options
 
@@ -45,7 +53,9 @@ but unused.
 | `--push` | off | sync: push the sync commit |
 | `--json` | off | machine-readable result |
 
-Numeric flags must be positive integers.
+Numeric flags must be positive integers
+(`<flag> must be a positive integer`); a value-taking flag without a value
+is `<flag> requires a value`.
 
 ## kronika sources
 
@@ -61,7 +71,9 @@ Prints the safe source manifest without calling Brama:
 }
 ```
 
-Selection and exclusion rules are in [sources](sources.md). Exit `0` unless
+The collection's shape, lifecycle, and refusal sentences are in
+[concepts/source-collection](concepts/source-collection.md); the full
+selection and exclusion rules in [sources](sources.md). Exit `0` unless
 selection itself fails (source outside the repository, symbolic link,
 missing path).
 
@@ -104,9 +116,14 @@ summary, and one line per finding. `--json` emits:
 ```
 
 Exit `0` when the audit passes (no blockers); exit `1` when it reports a
-blocker or fails. Warnings never block. The audit contract itself —
-"never require churn merely because source changed" — is enforced by the
-system prompt in `src/checker.ts`.
+blocker or fails — the gate never fails open. Warnings never block. The
+audit contract itself — "never require churn merely because source
+changed" — is enforced by the system prompt in `src/checker.ts`; the
+verdict and finding vocabulary are [concepts/check](concepts/check.md),
+[concepts/audit](concepts/audit.md),
+[concepts/finding](concepts/finding.md), and
+[concepts/blocker-vs-warning](concepts/blocker-vs-warning.md). A blocked and a passing run,
+captured end to end, are in [walkthrough-check](walkthrough-check.md).
 
 ## kronika write
 
@@ -120,7 +137,8 @@ Markdown code fence is stripped, content under 20 characters or containing
 NUL is rejected — and always ends with a newline.
 
 `--json` emits `outputPath`, `applied`, `model`, `sourceCount`, `skipped`,
-and, when not applied, the full `content`.
+and, when not applied, the full `content`. The applied confirmation line is
+`Wrote <path> from <n> source files via Brama.`
 
 ## kronika sync
 
@@ -140,3 +158,9 @@ plus the state file and commits with the message
 `kronika sync: advance documentation baselines` when only baselines moved.
 `--push` then runs `git push`. Exit `0` when every document reconciled;
 exit `1` when any outcome is `failed`.
+
+One observed consequence of `--commit`: the sync commit itself moves HEAD
+past the recorded baselines, so the *next* tick reports `advanced` (a free
+baseline move over the sync commit), not `current`. Every action of the
+state machine, with output captured tick by tick, is in
+[walkthrough-sync-cycle](walkthrough-sync-cycle.md).

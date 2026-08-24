@@ -74,9 +74,9 @@ sentences listed in [finding](finding.md). Transport failures surface the
 
 ## Not to be confused with
 
-- **`kronika check`** — the CLI verb that runs exactly one audit and turns
-  its verdict into an exit code; the audit is the underlying comparison,
-  reused verbatim by sync with restricted `diffPaths`.
+- **[`kronika check`](check.md)** — the CLI verb that runs exactly one audit
+  and turns its verdict into an exit code; the audit is the underlying
+  comparison, reused verbatim by sync with restricted `diffPaths`.
 - **[Drift](drift.md)** — the cheap Git-only question "did declared evidence
   change at all?". Drift decides *whether* an audit runs; the audit decides
   what the change *means* for the documentation.

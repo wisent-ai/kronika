@@ -31,11 +31,29 @@ kronika sources --repo /path/to/project
 
 This makes no model request and changes no file — it needs no Brama
 configuration at all. It prints JSON: the selected files with byte counts,
-the total, and every skipped file with its reason (credential-like name,
-over the per-file limit, binary content, and so on). Add `--source <path>`
-(repeatable) to select explicit files or directories instead of automatic
-discovery. Review this boundary before configuring Brama: it is exactly what
-the model will see.
+the total, and every skipped file with its reason. Captured against a toy
+repository (paths and counts will differ):
+
+```json
+{
+  "repo": "/private/tmp/kronika-docs.OnmsmX/toy",
+  "output": "README.md",
+  "totalBytes": 442,
+  "sources": [
+    { "path": "README.md", "bytes": 87 },
+    { "path": "docs/usage.md", "bytes": 80 },
+    { "path": "src/greet.js", "bytes": 93 },
+    { "path": "kronika.sync.json", "bytes": 182 }
+  ],
+  "skipped": [
+    { "path": "credentials.json", "reason": "credential or generated lock file" }
+  ]
+}
+```
+
+Add `--source <path>` (repeatable) to select explicit files or directories
+instead of automatic discovery. Review this boundary before configuring
+Brama: it is exactly what the model will see.
 
 ## Configure Brama
 
@@ -63,7 +81,9 @@ kronika check --repo /path/to/project --base origin/main --json
 `check` resolves `--base` and `--head` (default `HEAD`) to commit SHAs,
 sends the bounded Git diff plus current sources to Brama, and prints a
 structured verdict. Exit `0` means the documentation already covers the
-change; exit `1` means at least one blocker finding names a concrete defect.
+change; exit `1` means at least one blocker finding names a concrete defect
+— captured blocked and passing runs are in
+[walkthrough-check](walkthrough-check.md).
 
 ## Preview one document
 
@@ -104,8 +124,18 @@ kronika sync --repo /path/to/project --commit --push
 ```
 
 The first run for each document records the current commit as its baseline
-and generates nothing. Every later run audits only documents whose declared
-sources changed, rewrites only documents whose audit found blockers, and
-records the reconciled commit in `kronika.sync-state.json`. `--dry-run`
-reports without writing anything. Exit `1` means at least one document
-failed to reconcile. The full state machine is [the sync loop](sync.md).
+and generates nothing — captured verbatim:
+
+```console
+$ kronika sync --commit
+Kronika sync at 39825d883997
+  baseline        docs/usage.md — first sync records 39825d883997 as the baseline; nothing is generated on a first run
+  committed
+```
+
+Every later run audits only documents whose declared sources changed,
+rewrites only documents whose audit found blockers, and records the
+reconciled commit in `kronika.sync-state.json`. `--dry-run` reports without
+writing anything. Exit `1` means at least one document failed to reconcile.
+The full state machine is [the sync loop](sync.md); every action, captured
+tick by tick, is [walkthrough-sync-cycle](walkthrough-sync-cycle.md).

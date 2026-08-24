@@ -92,3 +92,19 @@ kronika sync --dry-run
 Report what a reconciliation run would do for every manifest-declared
 document, without writing a file or the state. The end-to-end path is
 [quick-start](quick-start.md); the full command surface is [cli](cli.md).
+
+## The rest of the corpus
+
+- **Nouns** — [source collection](concepts/source-collection.md),
+  [check](concepts/check.md), [audit](concepts/audit.md),
+  [finding](concepts/finding.md),
+  [blocker vs warning](concepts/blocker-vs-warning.md),
+  [manifest](concepts/manifest.md), [state](concepts/state.md),
+  [baseline](concepts/baseline.md), [drift](concepts/drift.md).
+- **Executed end to end** — [gating one change](walkthrough-check.md),
+  [one full sync cycle](walkthrough-sync-cycle.md),
+  runnable [examples](examples/README.md).
+- **When it fails** — every error sentence, with meaning and fix:
+  [runbook](runbook.md).
+- **Boundaries** — what Kronika owns, what it refuses to own, and what
+  leaves the machine: [architecture](architecture.md).

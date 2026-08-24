@@ -5,6 +5,13 @@ audits one change and `write` regenerates one document, but nothing
 remembered where documentation last agreed with the source. Sync carries
 that memory in the repository itself, in two committed files, so a scheduler
 can run it forever and each tick does only the work the evidence demands.
+Each noun has its own page — [manifest](concepts/manifest.md),
+[state](concepts/state.md), [baseline](concepts/baseline.md),
+[drift](concepts/drift.md), [audit](concepts/audit.md),
+[finding](concepts/finding.md),
+[blocker vs warning](concepts/blocker-vs-warning.md) — and every action
+below was captured running, tick by tick, in
+[walkthrough-sync-cycle](walkthrough-sync-cycle.md).
 
 ## The manifest: what is maintained
 
@@ -111,3 +118,9 @@ file and commits (`kronika sync: reconcile <files>`, or
 `--push` pushes that commit. This makes the loop schedulable: cron, launchd,
 or any scheduler can run `kronika sync --commit --push` unattended and
 documentation follows the repository by itself.
+
+One observed detail: the state records the HEAD the tick ran at, and the
+sync commit itself then moves HEAD by one — so the tick after a `--commit`
+reports `advanced` (a free baseline move over the sync commit), not
+`current`. `current` appears only when nothing was committed between two
+ticks.

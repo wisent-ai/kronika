@@ -3,8 +3,10 @@
 A branch changed the public CLI surface — does the documentation still hold?
 This page runs `kronika check` over one exact change, blocked and passing,
 text and JSON, plus the refusals you will actually meet, all output pasted
-verbatim. The audit's contract is [concepts/audit](concepts/audit.md); the
-finding vocabulary is [concepts/finding](concepts/finding.md).
+verbatim. The gate verb is [concepts/check](concepts/check.md); the audit's
+contract is [concepts/audit](concepts/audit.md); the finding vocabulary is
+[concepts/finding](concepts/finding.md) and
+[concepts/blocker-vs-warning](concepts/blocker-vs-warning.md).
 
 **How this was captured.** Same setup as
 [walkthrough-sync-cycle](walkthrough-sync-cycle.md): built CLI, toy

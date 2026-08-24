@@ -38,7 +38,9 @@ error `Brama request timed out after <n>ms`. A non-2xx response surfaces as
 `Brama returned HTTP <status>` with the server's error detail. The response
 may carry `content` directly or the OpenAI `choices[0].message.content`
 shape (string or text parts); an empty completion is the error
-`Brama returned no documentation content`.
+`Brama returned no documentation content`. Every transport sentence, with
+meaning and fix, is in the
+[runbook](runbook.md#transport-and-brama-answers).
 
 ## Model selection
 

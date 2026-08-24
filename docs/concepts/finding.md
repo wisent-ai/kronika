@@ -33,19 +33,10 @@ A captured blocker, verbatim from `kronika check --json`:
 
 ## Blocker vs warning
 
-The severity split carries the whole gating semantics:
-
-- **Blocker** — a concrete defect caused or exposed by the audited change: a
-  changed public command, API, configuration key, workflow, security
-  boundary, operational requirement, compatibility promise, or product
-  behavior that the current documentation omits or contradicts. Blockers
-  fail the audit: `check` exits `1`, and in sync they become the rewrite
-  brief.
-- **Warning** — useful but non-blocking. Warnings are reported in the
-  verdict and printed, and nothing else: they never flip `passed`, never
-  fail `check`, never trigger a rewrite.
-
-The verdict-level invariant is mechanical: `passed` must equal "there are no
+The severity split carries the whole gating semantics — blockers fail the
+audit and become the rewrite brief; warnings print and do nothing else —
+and has its own page: [blocker vs warning](blocker-vs-warning.md). The
+verdict-level invariant is mechanical: `passed` must equal "there are no
 blocker findings", or the whole verdict is rejected with
 `Kronika documentation check contradicts its blocker findings`.
 

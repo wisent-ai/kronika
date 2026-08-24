@@ -54,6 +54,7 @@ or private deployment directory` · `credential or generated lock file` ·
 | `Git commit cannot be resolved: <ref>` † | `--base`/`--head` is not a commit in this repository; check the ref and `--repo` |
 | `Git diff cannot be read for <base>...<head>` | diff itself failed (shallow clone missing the merge base, corrupt repo) |
 | `Git diff is <n> bytes, above --max-diff-bytes <m>; narrow or split the change rather than auditing a truncated diff` † | deliberate refusal — a truncated diff would audit a change that did not happen. Audit smaller ranges, restrict sync `sources`, or raise the budget knowingly |
+| `Diff byte limit must be a positive integer` | library-only: `checkDocumentation` called with a non-positive `maxDiffBytes` (the CLI validates `--max-diff-bytes` first) |
 
 ## Transport and Brama answers
 

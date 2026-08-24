@@ -28,12 +28,45 @@ interface CompletionClient {
   header set (`x-agent-id`, `x-agent-timestamp`, `x-agent-signature`) for a
   given JSON body, exported so other callers can sign identically.
 
+The seam is real, not theoretical: `checkDocumentation`,
+`writeDocumentation`, and `syncDocumentation` all take the client as their
+second argument, so a test double is one object:
+
+```ts
+import { checkDocumentation, type CompletionClient } from "@wisent-ai/kronika";
+
+const canned: CompletionClient = {
+  async complete() {
+    return { content: JSON.stringify({ passed: true, summary: "covered", findings: [] }) };
+  },
+};
+
+const audit = await checkDocumentation({
+  repo: "/path/to/project",
+  output: "docs/usage.md",
+  sources: ["src"],
+  base: "origin/main",
+  head: "HEAD",
+  model: "any",
+  maxTokens: 8_000,
+  maxInputBytes: 200_000,
+  maxFileBytes: 64_000,
+  maxDiffBytes: 200_000,
+}, canned);
+```
+
+The verdict still passes through `parseDocumentationCheck` — a double that
+answers malformed JSON fails exactly like a misbehaving model
+([runbook](runbook.md)).
+
 ## Selection
 
 - `collectSources(options: SourceOptions): SourceCollection` — builds the
   bounded source manifest; the rules are in [sources](sources.md).
   `SourceOptions` is `{ repo, sources?, output, maxInputBytes,
   maxFileBytes }`; the result is `{ documents, skipped, totalBytes }`.
+  Non-positive budgets throw `Source byte limits must be positive` — a
+  library-only sentence, since the CLI validates its flags first.
 
 ## Generation
 
@@ -65,7 +98,8 @@ interface CompletionClient {
   one reconciliation tick over a manifest; the state machine is in
   [sync](sync.md). `SyncOptions` is `{ repo, manifestPath, statePath,
   dryRun, defaults }`; the result is `{ headSha, outcomes, stateWritten }`.
-  Committing and pushing are CLI concerns, not library ones.
+  Committing and pushing are CLI concerns, not library ones. Manifest and
+  state validation sentences are in the [runbook](runbook.md#sync-fatal-sentences).
 - `loadSyncManifest(path): SyncManifest` — reads and validates a manifest.
 - `SYNC_MANIFEST_FILE`, `SYNC_STATE_FILE` — the default file names,
   `kronika.sync.json` and `kronika.sync-state.json`.
