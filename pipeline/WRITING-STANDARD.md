@@ -41,6 +41,13 @@ document adds the writing rules those checks cannot see.
   [corpus limits page]
 - Callouts carry warnings and tips only; steps are imperative, one
   action each. [corpus]
+- A page with six or more h2 sections opens with an in-page table of
+  contents right after the lede. [full-text crawl: "in this article"
+  blocks near-universal on giants' long pages]
+  [50ref rule 5: completion must end in addressable content]
+- The HTML `<title>` reads "<Page> — <Product> documentation"; the
+  breadcrumb stays unbranded. [full-text crawl title branding across
+  Grafana, Elastic, Firebase, MDN]
 - Security statements live on the page of the surface they concern.
   [corpus]
 
