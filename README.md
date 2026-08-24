@@ -357,3 +357,10 @@ Commands: `npm run docs:detect` · `npm run docs:validate` · `npm run docs:emit
 `BRAMA_URL`, then the local Stado resolver's brama adapter; there is no
 provider fallback. Honest state: the judge rubric is a stub until a docs rubric
 exists in Probierz; the mechanical validators carry the gate today.
+
+The writing standard for everything this pipeline produces is the operator's
+restored human-written corpus (the February 2026 Wisent documentation, now
+live at `ster.wisent.com/docs`) together with the 50-reference evidence set in
+`product-guidelines/documentation-site-examples/`: same page kinds, same
+anatomy, same sourcing discipline. The validators below enforce that bar
+mechanically because the author here is a model.
