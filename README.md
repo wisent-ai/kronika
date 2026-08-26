@@ -24,8 +24,10 @@ It keeps repository selection, exclusions, request signing, output confinement,
 and the final write under the operator's control. Source files are evidence, not
 instructions to the model.
 
-[Quick start](#quick-start) · [CLI reference](#primary-interfaces) ·
-[Library API](#library-api) ·
+[Documentation](https://kronika.wisent.com/docs/) ·
+[Quick start](https://kronika.wisent.com/docs/quick-start/) ·
+[CLI reference](https://kronika.wisent.com/docs/cli/) ·
+[Library API](https://kronika.wisent.com/docs/library/) ·
 [Canonical repository](https://github.com/wisent-ai/kronika)
 
 Version `0.2.0` is public development source. The package generates one local
