@@ -24,6 +24,7 @@
   },
   "scripts": {
     "build": "tsc -p tsconfig.json",
+    "prepare": "npm run build",
     "docs:detect": "node pipeline/src/detect.mjs",
     "docs:validate": "node pipeline/src/validate.mjs",
     "docs:emit": "node pipeline/src/emit.mjs"
