@@ -12,6 +12,7 @@
     "outDir": "dist",
     "rootDir": ".",
     "forceConsistentCasingInFileNames": true,
+    "resolveJsonModule": true,
     "skipLibCheck": true
   },
   "include": ["src/**/*.ts"]

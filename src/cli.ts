@@ -4,13 +4,15 @@ import { execFileSync } from "node:child_process";
 
 import { BramaClient } from "./brama.js";
 import { checkDocumentation } from "./checker.js";
+import type { OnboardingAction } from "./onboarding.js";
+import { recordSourceManifestInspected, renderOnboardingView, runOnboardingAction } from "./onboarding.js";
 import { collectSources } from "./sources.js";
 import type { CheckDocumentationOptions, WriteDocumentationOptions } from "./types.js";
 import { writeDocumentation } from "./writer.js";
 import { syncDocumentation } from "./sync.js";
 
 type ParsedArguments = {
-  command: "check" | "write" | "sources" | "sync" | "help";
+  command: "check" | "write" | "sources" | "sync" | "onboarding" | "help";
   repo: string;
   output: string;
   sources: string[];
@@ -30,6 +32,7 @@ type ParsedArguments = {
   dryRun: boolean;
   commit: boolean;
   push: boolean;
+  onboarding: OnboardingAction;
 };
 
 const HELP = `Kronika — source-grounded documentation writing through Brama
@@ -39,6 +42,7 @@ Usage:
   kronika check --base <ref> [options]
   kronika write [options]
   kronika sync [options]
+  kronika onboarding [--advance | --skip | --reset | --status] [--json]
 
 Commands:
   check                 Audit one exact Git change against current documentation
@@ -47,6 +51,8 @@ Commands:
   sync                  Reconcile every manifest-declared document with the
                         repository: audit drifted ones, rewrite only audited
                         defects, and record the reconciled commit
+  onboarding            Walk the first-use journey Kronika ships, one screen at
+                        a time, and replay it with --reset
 
 Options:
   --repo <path>          Repository root (default: current directory)
@@ -67,6 +73,10 @@ Options:
   --dry-run              Sync: report and audit, but write no file and no state
   --commit               Sync: commit rewritten documents and the state file
   --push                 Sync: push the sync commit
+  --advance              Onboarding: move to the next screen
+  --skip                 Onboarding: dismiss the journey
+  --reset                Onboarding: replay the journey from its first screen
+  --status               Onboarding: report an existing attempt without starting one
   --json                 Emit a machine-readable result
   -h, --help             Show this help
 
@@ -80,7 +90,9 @@ Without --apply, write prints the generated Markdown and does not change files.
 Check exits non-zero when it reports a documentation blocker.
 Sync's first run for a document records a baseline and generates nothing;
 every later run audits only documents whose declared sources changed, and
-exits non-zero when any document failed to reconcile.`;
+exits non-zero when any document failed to reconcile.
+Onboarding needs no Brama route: it completes when kronika sources prints a
+real source manifest.`;
 
 const positiveIntegerArgument = (flag: string, value: string | undefined): number => {
   if (value === undefined) throw new Error(`${flag} requires a value`);
@@ -94,6 +106,7 @@ const positiveIntegerArgument = (flag: string, value: string | undefined): numbe
 const parseArguments = (argv: string[]): ParsedArguments => {
   const first = argv[0];
   const command = first === "check" || first === "write" || first === "sources" || first === "sync"
+    || first === "onboarding"
     ? first
     : "help";
   if (first === "help" || first === "--help" || first === "-h" || argv.length === 0) {
@@ -116,6 +129,7 @@ const parseArguments = (argv: string[]): ParsedArguments => {
       dryRun: false,
       commit: false,
       push: false,
+      onboarding: "show",
     };
   }
   if (command === "help") throw new Error(`Unknown command: ${first}`);
@@ -139,6 +153,7 @@ const parseArguments = (argv: string[]): ParsedArguments => {
     dryRun: false,
     commit: false,
     push: false,
+    onboarding: "show",
   };
 
   for (let index = 1; index < argv.length; index += 1) {
@@ -219,6 +234,18 @@ const parseArguments = (argv: string[]): ParsedArguments => {
       case "--push":
         parsed.push = true;
         break;
+      case "--advance":
+        parsed.onboarding = "advance";
+        break;
+      case "--skip":
+        parsed.onboarding = "skip";
+        break;
+      case "--reset":
+        parsed.onboarding = "reset";
+        break;
+      case "--status":
+        parsed.onboarding = "status";
+        break;
       case "--apply":
         parsed.apply = true;
         break;
@@ -244,6 +271,14 @@ const main = async (): Promise<void> => {
     return;
   }
 
+  if (args.command === "onboarding") {
+    const result = await runOnboardingAction(args.onboarding, { client: "cli" });
+    process.stdout.write(args.json
+      ? `${JSON.stringify(result, null, 2)}\n`
+      : `${renderOnboardingView(result)}\n`);
+    return;
+  }
+
   const sourceOptions = {
     repo: args.repo,
     output: args.output,
@@ -261,6 +296,15 @@ const main = async (): Promise<void> => {
       sources: collection.documents.map(({ path, bytes }) => ({ path, bytes })),
       skipped: collection.skipped,
     }, null, 2)}\n`);
+    // A printed manifest is the first real Kronika result, so it is what
+    // completes the first-use journey when one is in progress.
+    if (collection.documents.length > 0) {
+      await recordSourceManifestInspected({
+        client: "cli",
+        sourceCount: collection.documents.length,
+        totalBytes: collection.totalBytes,
+      });
+    }
     return;
   }
 

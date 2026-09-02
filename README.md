@@ -291,6 +291,25 @@ Exit status `1` means at least one document failed to reconcile.
 | `--json` | machine-readable result |
 | `--apply` | atomically replace the requested output |
 
+### Walk the first-use journey
+
+```bash
+kronika onboarding             # current screen
+kronika onboarding --advance   # next screen
+kronika onboarding --reset     # replay from the first screen
+kronika onboarding --status    # report an existing attempt without starting one
+kronika onboarding --json      # machine-readable screen
+```
+
+The journey is the definition the package ships
+(`src/onboarding_first_use.json`): what Kronika builds documentation from, what
+the evidence boundary excludes, and how preview, audit and apply differ. It
+needs no Brama route and completes on a real result — `kronika sources`
+printing a source manifest for a repository you maintain
+(`source_manifest_inspected`). Progress is one local file under
+`${XDG_STATE_HOME:-~/.local/state}/kronika/onboarding.json`; `--skip` dismisses
+the journey and `--reset` replays it.
+
 ### Brama configuration
 
 ```bash

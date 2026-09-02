@@ -1,0 +1,115 @@
+{
+  "schema_version": 1,
+  "product_id": "kronika",
+  "journey_id": "first-use",
+  "journey_version": "2026-09-01.1",
+  "entry_screen_id": "promise",
+  "first_success_fact": "source_manifest_inspected",
+  "published_at": "2026-09-01T00:00:00Z",
+  "source_revision": "kronika-first-use-2026-09-01",
+  "screens": [
+    {
+      "screen_id": "promise",
+      "screen_kind": "promise",
+      "title_key": "kronika.onboarding.promise.title",
+      "body_key": "kronika.onboarding.promise.body",
+      "required": true,
+      "entry_conditions": null,
+      "completion_evidence": null,
+      "actions": ["continue"],
+      "transitions": [
+        {
+          "next_screen_id": "evidence_boundary",
+          "reason_code": "canonical_progression",
+          "priority": 10
+        }
+      ],
+      "fallback_screen_id": null,
+      "presentation": {
+        "renderer": "promise",
+        "title": "Documentation built only from repository truth",
+        "body": "Kronika drafts and reconciles a repository's documents from that repository's own files. It selects the evidence, sends one signed request, previews the candidate, and replaces a document only when you ask. Nothing in your sources is treated as an instruction to the model."
+      }
+    },
+    {
+      "screen_id": "evidence_boundary",
+      "screen_kind": "explanation",
+      "title_key": "kronika.onboarding.evidence_boundary.title",
+      "body_key": "kronika.onboarding.evidence_boundary.body",
+      "required": true,
+      "entry_conditions": null,
+      "completion_evidence": null,
+      "actions": ["continue"],
+      "transitions": [
+        {
+          "next_screen_id": "generation_boundary",
+          "reason_code": "canonical_progression",
+          "priority": 10
+        }
+      ],
+      "fallback_screen_id": null,
+      "presentation": {
+        "renderer": "explanation",
+        "title": "You see the evidence before any model call",
+        "body": "Discovery is git-aware, with a bounded recursive scan outside a worktree. Secret-prone files, private keys, dependency trees, build output and lock files are excluded, and byte budgets bound the payload. Every selected file, the total bytes, and each skipped file with its reason are printed for review."
+      }
+    },
+    {
+      "screen_id": "generation_boundary",
+      "screen_kind": "explanation",
+      "title_key": "kronika.onboarding.generation_boundary.title",
+      "body_key": "kronika.onboarding.generation_boundary.body",
+      "required": true,
+      "entry_conditions": null,
+      "completion_evidence": null,
+      "actions": ["continue"],
+      "transitions": [
+        {
+          "next_screen_id": "first_manifest",
+          "reason_code": "canonical_progression",
+          "priority": 10
+        }
+      ],
+      "fallback_screen_id": null,
+      "presentation": {
+        "renderer": "explanation",
+        "title": "Preview, audit, then apply",
+        "body": "With a scoped Brama route, kronika check audits one exact base..head diff and exits non-zero on a real documentation blocker; kronika write prints a candidate document and replaces the file only with --apply; kronika sync reconciles the documents declared in kronika.sync.json and rewrites only the defects an audit named.",
+        "commands": "kronika check | kronika write | kronika sync"
+      }
+    },
+    {
+      "screen_id": "first_manifest",
+      "screen_kind": "first_success",
+      "title_key": "kronika.onboarding.first_manifest.title",
+      "body_key": "kronika.onboarding.first_manifest.body",
+      "required": true,
+      "entry_conditions": null,
+      "completion_evidence": {
+        "kind": "fact",
+        "fact": "source_manifest_inspected",
+        "operator": "eq",
+        "value": true
+      },
+      "actions": ["complete"],
+      "transitions": [],
+      "fallback_screen_id": null,
+      "presentation": {
+        "renderer": "first_success",
+        "title": "Inspect your own repository's source manifest",
+        "body": "Run the command below in a repository you maintain. Kronika prints the files it would send, the selected byte total, and every skipped file with its reason. No Brama request is made and no file changes. Configure a Brama route only after that boundary reads correctly.",
+        "command": "kronika sources --repo . --source README.md --source src",
+        "result": "The selected source manifest, its byte total, and the skipped files with reasons"
+      }
+    }
+  ],
+  "analytics_contract": {
+    "contract_version": "1",
+    "surface": "cli_first_use",
+    "exposure_event": "onboarding_step_viewed",
+    "primary_action_event": "onboarding_step_completed",
+    "completion_event": "onboarding_completed",
+    "first_success_event": "onboarding_first_success_observed"
+  },
+  "experiment_contract": null
+}
