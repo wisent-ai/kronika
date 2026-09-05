@@ -15,6 +15,7 @@
   },
   "files": [
     "dist",
+    "gui",
     "pipeline",
     "LICENSE",
     "README.md"

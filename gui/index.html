@@ -1,0 +1,103 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light">
+  <title>Import an existing project — Kronika</title>
+  <link rel="stylesheet" href="/styles.css">
+  <script src="/app.js" defer></script>
+</head>
+<body>
+  <a class="skip-link" href="#workspace">Skip to importer</a>
+  <header class="masthead">
+    <a class="brand" href="/" aria-label="Kronika importer home">
+      <svg aria-hidden="true" viewBox="0 0 32 32"><path d="M7 4.5h14.5A3.5 3.5 0 0 1 25 8v19H10a4 4 0 0 1-4-4V5.5a1 1 0 0 1 1-1Z"/><path d="M10 27a4 4 0 0 1 4-4h11M11 10h9M11 15h7"/></svg>
+      <span>Kronika</span>
+    </a>
+    <span class="session-state"><span class="pulse" aria-hidden="true"></span> Local session</span>
+  </header>
+
+  <main id="workspace">
+    <section class="intro" aria-labelledby="page-title">
+      <p class="eyebrow">Existing-project importer</p>
+      <h1 id="page-title">Bring the documentation you already maintain.</h1>
+      <p class="lede">Select existing Markdown and its evidence. Kronika validates the complete selection and writes one sync manifest. It does not generate text, call Brama, run repository commands, or start a validation pipeline.</p>
+      <dl class="boundary">
+        <div><dt>Repository</dt><dd id="repo-path">Loading session…</dd></div>
+        <div><dt>Mutation</dt><dd>One atomic manifest write</dd></div>
+        <div><dt>Identity</dt><dd>Repository-relative document and source paths</dd></div>
+      </dl>
+    </section>
+
+    <div class="workspace-grid">
+      <form id="import-form" class="panel form-panel" novalidate>
+        <div class="panel-heading">
+          <div><p class="step">01 / Selection</p><h2>Declare the project</h2></div>
+          <p>Blank selection fields use Kronika's established defaults.</p>
+        </div>
+
+        <fieldset>
+          <legend>Existing documents</legend>
+          <label for="documents">Markdown files or directories <span>one repository-relative path per line</span></label>
+          <textarea id="documents" name="documents" rows="5" spellcheck="false" placeholder="README.md&#10;docs"></textarea>
+          <p class="hint">Blank selects an existing <code>README.md</code> and <code>docs/</code>. Directories are traversed for Markdown; duplicates retain one path identity.</p>
+        </fieldset>
+
+        <fieldset>
+          <legend>Evidence sources</legend>
+          <label for="sources">Files or directories <span>one repository-relative path per line</span></label>
+          <textarea id="sources" name="sources" rows="5" spellcheck="false" placeholder="src&#10;package.json"></textarea>
+          <p class="hint">Blank records <code>.</code>. Every imported document receives the same exact, sorted source declaration.</p>
+        </fieldset>
+
+        <fieldset class="destination-fields">
+          <legend>Destination and standing instruction</legend>
+          <label for="manifest">Manifest path <span>inside this repository</span></label>
+          <input id="manifest" name="manifest" type="text" value="kronika.sync.json" required spellcheck="false">
+
+          <label for="instruction">Instruction <span>optional</span></label>
+          <textarea id="instruction" name="instruction" rows="3" placeholder="Maintain the document's existing purpose and section order."></textarea>
+          <p class="hint">The instruction is retained in the manifest for later syncs. Import itself performs no inference.</p>
+        </fieldset>
+
+        <label class="replace-control" for="replace">
+          <input id="replace" name="replace" type="checkbox">
+          <span><strong>Replace a conflicting manifest</strong><small>Off preserves any different retained project and reports a conflict. Turn on only after reviewing that conflict.</small></span>
+        </label>
+
+        <div class="action-row">
+          <button id="submit-button" type="submit">Import existing project</button>
+          <p id="form-status" role="status" aria-live="polite">Ready to validate locally.</p>
+        </div>
+      </form>
+
+      <section class="panel result-panel" aria-labelledby="result-title">
+        <div class="panel-heading">
+          <div><p class="step">02 / Readback</p><h2 id="result-title" tabindex="-1">Accepted project state</h2></div>
+          <span id="result-badge" class="badge neutral">Not run</span>
+        </div>
+        <div id="result-empty" class="empty-state">
+          <p>Import results appear here.</p>
+          <span>Imported, unchanged, conflicting, and rejected paths stay separate. A successful result is read back from the exact manifest Kronika persisted.</span>
+        </div>
+        <div id="result-content" hidden>
+          <p id="result-summary" class="result-summary"></p>
+          <dl id="result-meta" class="result-meta"></dl>
+          <div id="outcome-groups" class="outcome-groups"></div>
+          <section id="project-state" class="project-state" hidden>
+            <h3>Persisted manifest</h3>
+            <p id="project-schema"></p>
+            <div id="project-documents"></div>
+          </section>
+        </div>
+      </section>
+    </div>
+  </main>
+
+  <footer>
+    <p>Source-grounded documentation. Local by default.</p>
+    <p>Close this terminal process to end the session.</p>
+  </footer>
+</body>
+</html>

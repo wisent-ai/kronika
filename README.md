@@ -27,6 +27,7 @@ instructions to the model.
 [Documentation](https://kronika.wisent.com/docs/) ·
 [Quick start](https://kronika.wisent.com/docs/quick-start/) ·
 [CLI reference](https://kronika.wisent.com/docs/cli/) ·
+[Graphical importer](https://kronika.wisent.com/docs/gui/) ·
 [Library API](https://kronika.wisent.com/docs/library/) ·
 [Canonical repository](https://github.com/wisent-ai/kronika)
 
@@ -69,7 +70,7 @@ Kronika serves:
   invented commands, APIs, configuration, and status;
 - preview-only output by default;
 - explicit `--apply` with an atomic rename inside the selected repository;
-- CLI plus a dependency-free runtime TypeScript library package.
+- CLI, accessible local graphical importer, and a dependency-free runtime TypeScript library package.
 
 ### Explicit non-goals
 
@@ -94,6 +95,7 @@ Kronika serves:
 |---|---|---|
 | CLI and library | Node.js 22+ | Implemented |
 | Adopt existing documentation | readable Markdown in `README.md`, `docs/`, or explicit `--docs` paths | Implemented; writes only `kronika.sync.json` |
+| Graphical adoption | installed `kronika` CLI and a local browser | Implemented; loopback-only, writes only the same sync manifest as `init` |
 | Local source inspection | readable repository | Implemented; no model call |
 | Documentation preview | Brama URL and scoped bearer; optional request-signing identity | Implemented |
 | Atomic apply | writable output within repository | Implemented with explicit flag |
@@ -114,6 +116,18 @@ Kronika serves:
   command is executed, and no Brama request occurs. An identical manifest is
   unchanged; a different one is preserved as a conflict unless `--replace` is
   explicit. Invalid or escaping paths leave no partial manifest.
+
+### Initialize through the local graphical workspace
+
+- **Actor:** a maintainer who prefers a browser form to repeatable CLI flags.
+- **Initial state:** the installed CLI and an existing repository with Markdown.
+- **Outcome:** `kronika gui --repo /path/to/project` prints an authenticated
+  loopback URL. The form submits documents, evidence sources, manifest path,
+  standing instruction, and explicit conflict replacement to the same
+  `initializeDocumentationWorkspace` function as `kronika init`, then displays
+  the exact persisted manifest readback.
+- **Boundary:** the command does not open a browser, call Brama, generate or
+  change documentation, execute repository commands, deploy, or run validation.
 
 ### Inspect the evidence boundary
 
@@ -212,6 +226,17 @@ npm link
 kronika sources --repo /path/to/project
 ```
 
+To use the graphical importer instead, keep this foreground command running and
+open the exact session URL it prints:
+
+```bash
+kronika gui --repo /path/to/project
+```
+
+The server binds `127.0.0.1` on an operating-system-assigned port (or pass
+`--port 4173`), requires its per-session token and exact origin/host for
+mutation, and never opens a browser itself.
+
 ## Primary interfaces
 
 ### Adopt existing documents into the project manifest
@@ -231,6 +256,20 @@ rejection exits non-zero and leaves the current manifest untouched. `--replace`
 is the explicit overwrite for a conflicting manifest. Symbolic links,
 non-Markdown file selections, missing paths, and paths outside the repository
 are rejected. Existing documents are never copied, generated, or edited.
+
+### Adopt existing documents through the graphical importer
+
+```bash
+kronika gui --repo /path/to/project
+```
+
+The installed package includes the browser assets. The local workspace exposes
+the same `documents`, `sources`, `manifestPath`, `instruction`, and `replace`
+inputs accepted by `initializeDocumentationWorkspace`. Blank document and
+source selections retain the CLI defaults. Results keep imported, unchanged,
+conflicting, and rejected paths distinct; success is followed by a readback of
+the actual manifest and every accepted document/source declaration. See the
+[graphical importer contract](https://kronika.wisent.com/docs/gui/).
 
 ### Inspect sources
 

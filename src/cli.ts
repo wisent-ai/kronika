@@ -6,6 +6,7 @@ import { BramaClient } from "./brama.js";
 import { checkDocumentation } from "./checker.js";
 import type { OnboardingAction } from "./onboarding.js";
 import { recordWorkspaceInitialized, renderOnboardingView, runOnboardingAction } from "./onboarding.js";
+import { startKronikaGui } from "./gui.js";
 import { collectSources } from "./sources.js";
 import { initializeDocumentationWorkspace } from "./project.js";
 import type { CheckDocumentationOptions, WriteDocumentationOptions } from "./types.js";
@@ -13,7 +14,7 @@ import { writeDocumentation } from "./writer.js";
 import { syncDocumentation } from "./sync.js";
 
 type ParsedArguments = {
-  command: "check" | "write" | "sources" | "sync" | "init" | "onboarding" | "help";
+  command: "check" | "write" | "sources" | "sync" | "init" | "gui" | "onboarding" | "help";
   repo: string;
   output: string;
   sources: string[];
@@ -22,6 +23,7 @@ type ParsedArguments = {
   maxInputBytes: number;
   maxFileBytes: number;
   maxTokens: number;
+  port: number;
   timeoutMs: number;
   maxDiffBytes: number;
   apply: boolean;
@@ -42,6 +44,7 @@ const HELP = `Kronika — source-grounded documentation writing through Brama
 
 Usage:
   kronika init [--docs <path>] [--source <path>] [--replace] [options]
+  kronika gui [--repo <path>] [--port <n>]
   kronika sources [options]
   kronika check --base <ref> [options]
   kronika write [options]
@@ -51,6 +54,8 @@ Usage:
 Commands:
   init                  Adopt existing repository documentation into the
                         canonical kronika.sync.json project manifest
+  gui                   Host the local existing-project importer without
+                        opening a browser
   check                 Audit one exact Git change against current documentation
   sources               Show the safe source manifest without calling Brama
   write                 Generate complete Markdown through Brama
@@ -64,6 +69,7 @@ Options:
   --repo <path>          Repository root (default: current directory)
   --output <path>        Target document inside the repository (default: README.md)
   --docs <path>          Existing Markdown file or directory for init; repeatable
+  --port <n>             GUI loopback port (default: operating-system assigned)
   --source <path>        Explicit source file or directory; repeatable
   --base <ref>           Base Git commit for check (required)
   --head <ref>           Head Git commit for check (default: HEAD)
@@ -100,7 +106,8 @@ Sync's first run for a document records a baseline and generates nothing;
 every later run audits only documents whose declared sources changed, and
 exits non-zero when any document failed to reconcile.
 Onboarding needs no Brama route: it completes when kronika init durably
-adopts an existing documentation workspace.`;
+adopts an existing documentation workspace. The gui command binds only
+127.0.0.1, prints its session URL, and never opens a browser.`;
 
 const positiveIntegerArgument = (flag: string, value: string | undefined): number => {
   if (value === undefined) throw new Error(`${flag} requires a value`);
@@ -114,7 +121,7 @@ const positiveIntegerArgument = (flag: string, value: string | undefined): numbe
 const parseArguments = (argv: string[]): ParsedArguments => {
   const first = argv[0];
   const command = first === "check" || first === "write" || first === "sources" || first === "sync"
-    || first === "init" || first === "onboarding"
+    || first === "init" || first === "gui" || first === "onboarding"
     ? first
     : "help";
   if (first === "help" || first === "--help" || first === "-h" || argv.length === 0) {
@@ -128,6 +135,7 @@ const parseArguments = (argv: string[]): ParsedArguments => {
       maxInputBytes: 200_000,
       maxFileBytes: 64_000,
       maxTokens: 8_000,
+      port: 0,
       timeoutMs: 120_000,
       maxDiffBytes: 200_000,
       apply: false,
@@ -156,6 +164,7 @@ const parseArguments = (argv: string[]): ParsedArguments => {
     maxTokens: 8_000,
     timeoutMs: 120_000,
     maxDiffBytes: 200_000,
+    port: 0,
     apply: false,
     json: false,
     head: "HEAD",
@@ -187,6 +196,13 @@ const parseArguments = (argv: string[]): ParsedArguments => {
         parsed.repo = value;
         index += 1;
         break;
+      case "--port": {
+        const parsedPort = positiveIntegerArgument(flag, value);
+        if (parsedPort > 65_535) throw new Error("--port must be between 1 and 65535");
+        parsed.port = parsedPort;
+        index += 1;
+        break;
+      }
       case "--output":
         if (value === undefined) throw new Error("--output requires a value");
         parsed.output = value;
@@ -296,6 +312,14 @@ const main = async (): Promise<void> => {
     process.stdout.write(args.json
       ? `${JSON.stringify(result, null, 2)}\n`
       : `${renderOnboardingView(result)}\n`);
+    return;
+  }
+  if (args.command === "gui") {
+    const gui = await startKronikaGui({
+      repo: args.repo,
+      ...(args.port ? { port: args.port } : {}),
+    });
+    process.stdout.write(`Kronika graphical importer: ${gui.url}\n`);
     return;
   }
   if (args.command === "init") {
