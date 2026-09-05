@@ -93,6 +93,7 @@ Kronika serves:
 | Surface | Requirement | Current state |
 |---|---|---|
 | CLI and library | Node.js 22+ | Implemented |
+| Adopt existing documentation | readable Markdown in `README.md`, `docs/`, or explicit `--docs` paths | Implemented; writes only `kronika.sync.json` |
 | Local source inspection | readable repository | Implemented; no model call |
 | Documentation preview | Brama URL and scoped bearer; optional request-signing identity | Implemented |
 | Atomic apply | writable output within repository | Implemented with explicit flag |
@@ -101,6 +102,18 @@ Kronika serves:
 | Hosted scheduling/review/publishing | managed service | Not implemented by this package |
 
 ## Core use cases
+
+### Initialize an existing documentation workspace
+
+- **Actor:** a maintainer bringing a repository they already document.
+- **Initial state:** existing Markdown under `README.md`, `docs/`, or explicit
+  repository-relative `--docs` paths.
+- **Outcome:** `kronika init` validates every document and evidence path, then
+  atomically writes the established `kronika.sync.json` project manifest.
+- **Boundary:** no documentation is generated or changed, no repository
+  command is executed, and no Brama request occurs. An identical manifest is
+  unchanged; a different one is preserved as a conflict unless `--replace` is
+  explicit. Invalid or escaping paths leave no partial manifest.
 
 ### Inspect the evidence boundary
 
@@ -169,8 +182,9 @@ for source and review history.
 
 ## Quick start
 
-This safe path builds the package and inspects which files Kronika would select.
-It makes no model request and changes no project file.
+This safe path builds the package, adopts its existing Markdown into Kronika's
+project manifest, and inspects the evidence boundary. It makes no model request
+and does not generate or rewrite documentation.
 
 ### Prerequisites
 
@@ -183,10 +197,12 @@ git clone https://github.com/wisent-ai/kronika.git
 cd kronika
 npm install
 npm run build
+node dist/src/cli.js init --repo .
 node dist/src/cli.js sources --repo . --source README.md --source src
 ```
 
-Expected result: the command prints the selected manifest, byte total, and any
+Expected result: `init` reports every imported document and writes only
+`kronika.sync.json`; `sources` prints the selected manifest, byte total, and
 skipped files with reasons. Only configure Brama after reviewing that boundary.
 
 For local command installation:
@@ -197,6 +213,24 @@ kronika sources --repo /path/to/project
 ```
 
 ## Primary interfaces
+
+### Adopt existing documents into the project manifest
+
+```bash
+kronika init --repo /path/to/project
+kronika init --repo /path/to/project --docs README.md --docs handbook \
+  --source src --source package.json
+```
+
+Without `--docs`, Kronika discovers Markdown under an existing `README.md` and
+`docs/`. Every document receives the exact repeated `--source` paths, or `.`
+when none are supplied, in schema-version-1 `kronika.sync.json`. The command
+validates all selected paths before one atomic manifest write. It reports
+`imported`, `unchanged`, `conflicting`, and `rejected` arrays; a conflict or
+rejection exits non-zero and leaves the current manifest untouched. `--replace`
+is the explicit overwrite for a conflicting manifest. Symbolic links,
+non-Markdown file selections, missing paths, and paths outside the repository
+are rejected. Existing documents are never copied, generated, or edited.
 
 ### Inspect sources
 
@@ -302,13 +336,12 @@ kronika onboarding --json      # machine-readable screen
 ```
 
 The journey is the definition the package ships
-(`src/onboarding_first_use.json`): what Kronika builds documentation from, what
-the evidence boundary excludes, and how preview, audit and apply differ. It
-needs no Brama route and completes on a real result — `kronika sources`
-printing a source manifest for a repository you maintain
-(`source_manifest_inspected`). Progress is one local file under
-`${XDG_STATE_HOME:-~/.local/state}/kronika/onboarding.json`; `--skip` dismisses
-the journey and `--reset` replays it.
+(`src/onboarding_first_use.json`): it starts with the Markdown already in the
+repository and leads to `kronika init`. It needs no Brama route and completes
+only after the canonical sync manifest is atomically written or an identical
+manifest is accepted (`documentation_workspace_initialized`). Progress is one
+local file under `${XDG_STATE_HOME:-~/.local/state}/kronika/onboarding.json`;
+`--skip` dismisses the journey and `--reset` replays it.
 
 ### Brama configuration
 
@@ -329,7 +362,17 @@ credential; materialize them through the deployment's scoped secret boundary.
 ## Library API
 
 ```ts
-import { BramaClient, writeDocumentation } from "@wisent-ai/kronika";
+import { BramaClient, initializeDocumentationWorkspace, writeDocumentation } from "@wisent-ai/kronika";
+
+const initialized = initializeDocumentationWorkspace({
+  repo: "/path/to/project",
+  manifestPath: "kronika.sync.json",
+  documents: ["README.md", "docs"],
+  sources: ["src", "package.json"],
+});
+if (initialized.status === "conflicting" || initialized.status === "rejected") {
+  throw new Error(JSON.stringify(initialized));
+}
 
 const client = new BramaClient({
   url: process.env.BRAMA_URL!,

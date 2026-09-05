@@ -7,6 +7,8 @@ export {
 export { buildDocumentationMessages } from "./prompt.js";
 export { collectSources } from "./sources.js";
 export { writeDocumentation } from "./writer.js";
+export { initializeDocumentationWorkspace } from "./project.js";
+export type { InitializeWorkspaceOptions, InitializeWorkspaceResult } from "./project.js";
 export {
   loadSyncManifest,
   SYNC_MANIFEST_FILE,
