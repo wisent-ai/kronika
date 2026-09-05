@@ -6,9 +6,9 @@
 // it cannot be reached, the shipped definition is authoritative, so the
 // walkthrough works offline and on a first install.
 //
-// Progress lives in one local state file, and the journey completes on a real
-// product effect: `kronika sources` printing a source manifest for a
-// repository the operator maintains.
+// Progress lives in one local state file, and the journey completes only after
+// `kronika init` has durably adopted existing documentation into the
+// repository's canonical sync manifest.
 
 import { createHash, randomUUID } from "node:crypto";
 import { mkdir, readFile, rename, writeFile } from "node:fs/promises";
@@ -19,9 +19,9 @@ import shippedDefinition from "./onboarding_first_use.json" with { type: "json" 
 
 const PRODUCT_ID = "kronika";
 const JOURNEY_ID = "first-use";
-const JOURNEY_VERSION = "2026-09-01.1";
-const JOURNEY_VERSION_ID = "3f2b6c14-9a5d-4e07-8bd1-27c4a6f0e5b9";
-const FIRST_SUCCESS_FACT = "source_manifest_inspected";
+const JOURNEY_VERSION = "2026-09-05.1";
+const JOURNEY_VERSION_ID = "59e8a0c3-55d8-4a95-80df-1dd4cfa57766";
+const FIRST_SUCCESS_FACT = "documentation_workspace_initialized";
 const STATE_PATH = join(
   process.env.XDG_STATE_HOME || join(homedir(), ".local", "state"),
   "kronika",
@@ -522,9 +522,9 @@ class OnboardingSession {
     ]);
   }
 
-  // The journey completes on the product's own effect, not on a click: a
-  // printed source manifest is the first real result Kronika produces.
-  async observeSourceManifest(revision: string, properties: Record<string, Scalar | undefined>): Promise<boolean> {
+  // The journey completes on the product's own durable effect, not on a click:
+  // the repository now has a validated sync manifest for its existing docs.
+  async observeWorkspaceInitialized(revision: string, properties: Record<string, Scalar | undefined>): Promise<boolean> {
     if (this.progress.status !== "in_progress") return false;
     this.state.evidence = { ...this.state.evidence, [FIRST_SUCCESS_FACT]: true };
     const events: OnboardingEvent[] = [];
@@ -688,21 +688,25 @@ export const runOnboardingAction = async (
 };
 
 /**
- * Record the first real Kronika result: a source manifest printed for a
- * repository. Called by `kronika sources`; onboarding bookkeeping must never
- * turn a successful command into a failure, so every error is swallowed.
+ * Record the first real setup result: existing documentation accepted into a
+ * durable Kronika project manifest. Onboarding bookkeeping must never turn a
+ * successful import into a failure, so every error is swallowed.
  */
-export const recordSourceManifestInspected = async (
-  { client = "cli", sourceCount, totalBytes }: { client?: string; sourceCount?: number; totalBytes?: number } = {},
+export const recordWorkspaceInitialized = async (
+  {
+    client = "cli",
+    documentCount,
+    manifestPath,
+  }: { client?: string; documentCount?: number; manifestPath?: string } = {},
 ): Promise<boolean> => {
   try {
     const session = await openSession(client, false);
     if (!session || session.progress.status !== "in_progress") return false;
-    return await session.observeSourceManifest(new Date().toISOString(), {
+    return await session.observeWorkspaceInitialized(new Date().toISOString(), {
       first_success_fact: FIRST_SUCCESS_FACT,
-      command: "kronika sources",
-      source_count: sourceCount ?? null,
-      total_bytes: totalBytes ?? null,
+      command: "kronika init",
+      document_count: documentCount ?? null,
+      manifest_path: manifestPath ?? null,
     });
   } catch {
     return false;

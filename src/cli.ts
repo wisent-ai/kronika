@@ -5,17 +5,19 @@ import { execFileSync } from "node:child_process";
 import { BramaClient } from "./brama.js";
 import { checkDocumentation } from "./checker.js";
 import type { OnboardingAction } from "./onboarding.js";
-import { recordSourceManifestInspected, renderOnboardingView, runOnboardingAction } from "./onboarding.js";
+import { recordWorkspaceInitialized, renderOnboardingView, runOnboardingAction } from "./onboarding.js";
 import { collectSources } from "./sources.js";
+import { initializeDocumentationWorkspace } from "./project.js";
 import type { CheckDocumentationOptions, WriteDocumentationOptions } from "./types.js";
 import { writeDocumentation } from "./writer.js";
 import { syncDocumentation } from "./sync.js";
 
 type ParsedArguments = {
-  command: "check" | "write" | "sources" | "sync" | "onboarding" | "help";
+  command: "check" | "write" | "sources" | "sync" | "init" | "onboarding" | "help";
   repo: string;
   output: string;
   sources: string[];
+  documents: string[];
   model: string;
   maxInputBytes: number;
   maxFileBytes: number;
@@ -32,12 +34,14 @@ type ParsedArguments = {
   dryRun: boolean;
   commit: boolean;
   push: boolean;
+  replace: boolean;
   onboarding: OnboardingAction;
 };
 
 const HELP = `Kronika — source-grounded documentation writing through Brama
 
 Usage:
+  kronika init [--docs <path>] [--source <path>] [--replace] [options]
   kronika sources [options]
   kronika check --base <ref> [options]
   kronika write [options]
@@ -45,6 +49,8 @@ Usage:
   kronika onboarding [--advance | --skip | --reset | --status] [--json]
 
 Commands:
+  init                  Adopt existing repository documentation into the
+                        canonical kronika.sync.json project manifest
   check                 Audit one exact Git change against current documentation
   sources               Show the safe source manifest without calling Brama
   write                 Generate complete Markdown through Brama
@@ -57,6 +63,7 @@ Commands:
 Options:
   --repo <path>          Repository root (default: current directory)
   --output <path>        Target document inside the repository (default: README.md)
+  --docs <path>          Existing Markdown file or directory for init; repeatable
   --source <path>        Explicit source file or directory; repeatable
   --base <ref>           Base Git commit for check (required)
   --head <ref>           Head Git commit for check (default: HEAD)
@@ -73,6 +80,7 @@ Options:
   --dry-run              Sync: report and audit, but write no file and no state
   --commit               Sync: commit rewritten documents and the state file
   --push                 Sync: push the sync commit
+  --replace              Init: replace a conflicting existing sync manifest
   --advance              Onboarding: move to the next screen
   --skip                 Onboarding: dismiss the journey
   --reset                Onboarding: replay the journey from its first screen
@@ -91,8 +99,8 @@ Check exits non-zero when it reports a documentation blocker.
 Sync's first run for a document records a baseline and generates nothing;
 every later run audits only documents whose declared sources changed, and
 exits non-zero when any document failed to reconcile.
-Onboarding needs no Brama route: it completes when kronika sources prints a
-real source manifest.`;
+Onboarding needs no Brama route: it completes when kronika init durably
+adopts an existing documentation workspace.`;
 
 const positiveIntegerArgument = (flag: string, value: string | undefined): number => {
   if (value === undefined) throw new Error(`${flag} requires a value`);
@@ -106,7 +114,7 @@ const positiveIntegerArgument = (flag: string, value: string | undefined): numbe
 const parseArguments = (argv: string[]): ParsedArguments => {
   const first = argv[0];
   const command = first === "check" || first === "write" || first === "sources" || first === "sync"
-    || first === "onboarding"
+    || first === "init" || first === "onboarding"
     ? first
     : "help";
   if (first === "help" || first === "--help" || first === "-h" || argv.length === 0) {
@@ -115,6 +123,7 @@ const parseArguments = (argv: string[]): ParsedArguments => {
       repo: process.cwd(),
       output: "README.md",
       sources: [],
+      documents: [],
       model: process.env.KRONIKA_MODEL || "any",
       maxInputBytes: 200_000,
       maxFileBytes: 64_000,
@@ -129,6 +138,7 @@ const parseArguments = (argv: string[]): ParsedArguments => {
       dryRun: false,
       commit: false,
       push: false,
+      replace: false,
       onboarding: "show",
     };
   }
@@ -139,6 +149,7 @@ const parseArguments = (argv: string[]): ParsedArguments => {
     repo: process.cwd(),
     output: "README.md",
     sources: [],
+    documents: [],
     model: process.env.KRONIKA_MODEL || "any",
     maxInputBytes: 200_000,
     maxFileBytes: 64_000,
@@ -153,6 +164,7 @@ const parseArguments = (argv: string[]): ParsedArguments => {
     dryRun: false,
     commit: false,
     push: false,
+    replace: false,
     onboarding: "show",
   };
 
@@ -178,6 +190,11 @@ const parseArguments = (argv: string[]): ParsedArguments => {
       case "--output":
         if (value === undefined) throw new Error("--output requires a value");
         parsed.output = value;
+        index += 1;
+        break;
+      case "--docs":
+        if (value === undefined) throw new Error("--docs requires a value");
+        parsed.documents.push(value);
         index += 1;
         break;
       case "--source":
@@ -234,6 +251,9 @@ const parseArguments = (argv: string[]): ParsedArguments => {
       case "--push":
         parsed.push = true;
         break;
+      case "--replace":
+        parsed.replace = true;
+        break;
       case "--advance":
         parsed.onboarding = "advance";
         break;
@@ -278,6 +298,27 @@ const main = async (): Promise<void> => {
       : `${renderOnboardingView(result)}\n`);
     return;
   }
+  if (args.command === "init") {
+    const result = initializeDocumentationWorkspace({
+      repo: args.repo,
+      manifestPath: args.manifest,
+      ...(args.documents.length > 0 ? { documents: args.documents } : {}),
+      ...(args.sources.length > 0 ? { sources: args.sources } : {}),
+      ...(args.instruction ? { instruction: args.instruction } : {}),
+      replace: args.replace,
+    });
+    process.stdout.write(`${JSON.stringify(result, null, 2)}\n`);
+    if (result.status === "imported" || result.status === "unchanged") {
+      await recordWorkspaceInitialized({
+        client: "cli",
+        documentCount: result.imported.length + result.unchanged.length,
+        manifestPath: result.manifestPath,
+      });
+      return;
+    }
+    process.exitCode = 1;
+    return;
+  }
 
   const sourceOptions = {
     repo: args.repo,
@@ -296,15 +337,7 @@ const main = async (): Promise<void> => {
       sources: collection.documents.map(({ path, bytes }) => ({ path, bytes })),
       skipped: collection.skipped,
     }, null, 2)}\n`);
-    // A printed manifest is the first real Kronika result, so it is what
-    // completes the first-use journey when one is in progress.
-    if (collection.documents.length > 0) {
-      await recordSourceManifestInspected({
-        client: "cli",
-        sourceCount: collection.documents.length,
-        totalBytes: collection.totalBytes,
-      });
-    }
+
     return;
   }
 
