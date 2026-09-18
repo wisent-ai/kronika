@@ -13,6 +13,9 @@ import path from "node:path";
 import { validatePlan } from "./schema.mjs";
 import { expandPath, readJson, printReport, runCommand, fetchText, isMain } from "./lib.mjs";
 
+// A word used on this many pages is a term the plan must declare.
+const TERM_PAGE_THRESHOLD = 3;
+
 /** Visit every block with its JSONPath-ish address and owning page. */
 export function forEachBlock(plan, fn) {
   (plan.pages ?? []).forEach((page, pi) => {
@@ -232,7 +235,7 @@ function validateTerms(plan, brief) {
     }
   }
   for (const [word, pages] of usage) {
-    if (pages.length >= 3 && !covered(word)) {
+    if (pages.length >= TERM_PAGE_THRESHOLD && !covered(word)) {
       failures.push({
         term: word,
         pages,

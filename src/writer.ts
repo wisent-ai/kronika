@@ -18,11 +18,14 @@ import type {
   WriteDocumentationResult,
 } from "./types.js";
 
+// Fewer characters than this is a refusal or a fragment, not documentation.
+const MIN_DOCUMENT_CHARS = 20;
+
 const normalizeModelOutput = (content: string): string => {
   let normalized = content.trim();
   const fenced = normalized.match(/^```(?:markdown|md)?\s*\n([\s\S]*?)\n```$/i);
   if (fenced?.[1]) normalized = fenced[1].trim();
-  if (normalized.length < 20) throw new Error("Brama returned documentation that is too short");
+  if (normalized.length < MIN_DOCUMENT_CHARS) throw new Error("Brama returned documentation that is too short");
   if (normalized.includes("\0")) throw new Error("Brama returned invalid NUL content");
   return `${normalized}\n`;
 };

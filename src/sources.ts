@@ -172,15 +172,26 @@ const automaticSource = (path: string): boolean => {
   return Boolean(AUTOMATIC_TEXT_EXTENSIONS[extname(name).toLowerCase()]);
 };
 
+// The order sources are handed to the model, best first: the document being written, then what
+// already describes the repository, its manifests, its configuration, its code, everything else,
+// and its tests last.
+const PRIORITY_OUTPUT = 0;
+const PRIORITY_DOCUMENTATION = 1;
+const PRIORITY_MANIFEST = 2;
+const PRIORITY_CONFIGURATION = 3;
+const PRIORITY_CODE = 4;
+const PRIORITY_OTHER = 5;
+const PRIORITY_TESTS = 6;
+
 const priority = (relativePath: string, output: string): number => {
-  if (relativePath === output) return 0;
+  if (relativePath === output) return PRIORITY_OUTPUT;
   const lower = relativePath.toLowerCase();
-  if (lower === "readme.md" || lower.startsWith("docs/")) return 1;
-  if (["package.json", "pyproject.toml", "cargo.toml", "go.mod"].includes(lower)) return 2;
-  if (lower.includes("config") || lower.includes("schema")) return 3;
-  if (lower.startsWith("src/") || lower.startsWith("app/")) return 4;
-  if (lower.includes("test")) return 6;
-  return 5;
+  if (lower === "readme.md" || lower.startsWith("docs/")) return PRIORITY_DOCUMENTATION;
+  if (["package.json", "pyproject.toml", "cargo.toml", "go.mod"].includes(lower)) return PRIORITY_MANIFEST;
+  if (lower.includes("config") || lower.includes("schema")) return PRIORITY_CONFIGURATION;
+  if (lower.startsWith("src/") || lower.startsWith("app/")) return PRIORITY_CODE;
+  if (lower.includes("test")) return PRIORITY_TESTS;
+  return PRIORITY_OTHER;
 };
 
 export const collectSources = (options: SourceOptions): SourceCollection => {

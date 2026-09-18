@@ -5,6 +5,9 @@ import { homedir } from "node:os";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
 
+// A gateway that answers with one of these is down, not refusing the request.
+const INFRA_DOWN_STATUSES = [502, 503, 504];
+
 export function expandPath(p, base = process.cwd()) {
   if (p === "~") return homedir();
   if (p.startsWith("~/")) return path.join(homedir(), p.slice(2));
@@ -107,7 +110,7 @@ export async function chatComplete({ endpoint, messages, model = "default", time
   }
   if (!res.ok) {
     const body = (await res.text()).slice(0, 400).trim();
-    if ([502, 503, 504].includes(res.status)) throw new InfraDownError(url, `HTTP ${res.status}: ${body}`);
+    if (INFRA_DOWN_STATUSES.includes(res.status)) throw new InfraDownError(url, `HTTP ${res.status}: ${body}`);
     throw new Error(`brama answered HTTP ${res.status}: ${body}`);
   }
   const body = await res.json();

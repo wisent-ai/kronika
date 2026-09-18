@@ -14,6 +14,15 @@ const MAX_SELECTIONS = 256;
 const MAX_PATH_LENGTH = 4_096;
 const MAX_INSTRUCTION_LENGTH = 16_384;
 const ASSET_ROOT = fileURLToPath(new URL("../../gui/", import.meta.url));
+// The statuses the GUI answers with.
+const HTTP_OK = 200;
+const HTTP_BAD_REQUEST = 400;
+const HTTP_FORBIDDEN = 403;
+const HTTP_NOT_FOUND = 404;
+const HTTP_CONFLICT = 409;
+const HTTP_PAYLOAD_TOO_LARGE = 413;
+const HTTP_UNSUPPORTED_MEDIA_TYPE = 415;
+const HTTP_UNPROCESSABLE = 422;
 
 const ASSETS: Readonly<Record<string, { file: string; contentType: string }>> = {
   "/": { file: "index.html", contentType: "text/html; charset=utf-8" },
@@ -79,27 +88,27 @@ const requireSession = (
   mutation: boolean,
 ): void => {
   if (request.headers.host !== expectedHost) {
-    throw new HttpError(403, "request host does not match this Kronika GUI session");
+    throw new HttpError(HTTP_FORBIDDEN, "request host does not match this Kronika GUI session");
   }
   if (!sameToken(request.headers["x-kronika-token"], token)) {
-    throw new HttpError(403, "Kronika GUI session token is missing or invalid");
+    throw new HttpError(HTTP_FORBIDDEN, "Kronika GUI session token is missing or invalid");
   }
   if (mutation && request.headers.origin !== expectedOrigin) {
-    throw new HttpError(403, "request origin does not match this Kronika GUI session");
+    throw new HttpError(HTTP_FORBIDDEN, "request origin does not match this Kronika GUI session");
   }
 };
 
 const readJson = async (request: IncomingMessage): Promise<unknown> => {
   const contentType = request.headers["content-type"]?.split(";", 1)[0]?.trim().toLowerCase();
-  if (contentType !== "application/json") throw new HttpError(415, "request content type must be application/json");
+  if (contentType !== "application/json") throw new HttpError(HTTP_UNSUPPORTED_MEDIA_TYPE, "request content type must be application/json");
 
   const declaredLength = request.headers["content-length"];
   if (declaredLength !== undefined) {
     const parsedLength = Number(declaredLength);
     if (!Number.isSafeInteger(parsedLength) || parsedLength < 0) {
-      throw new HttpError(400, "request content length is invalid");
+      throw new HttpError(HTTP_BAD_REQUEST, "request content length is invalid");
     }
-    if (parsedLength > MAX_REQUEST_BYTES) throw new HttpError(413, `request exceeds ${MAX_REQUEST_BYTES} bytes`);
+    if (parsedLength > MAX_REQUEST_BYTES) throw new HttpError(HTTP_PAYLOAD_TOO_LARGE, `request exceeds ${MAX_REQUEST_BYTES} bytes`);
   }
 
   const chunks: Buffer[] = [];
@@ -107,26 +116,26 @@ const readJson = async (request: IncomingMessage): Promise<unknown> => {
   for await (const chunk of request) {
     const bytes = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk);
     size += bytes.length;
-    if (size > MAX_REQUEST_BYTES) throw new HttpError(413, `request exceeds ${MAX_REQUEST_BYTES} bytes`);
+    if (size > MAX_REQUEST_BYTES) throw new HttpError(HTTP_PAYLOAD_TOO_LARGE, `request exceeds ${MAX_REQUEST_BYTES} bytes`);
     chunks.push(bytes);
   }
   try {
     return JSON.parse(Buffer.concat(chunks, size).toString("utf8"));
   } catch {
-    throw new HttpError(400, "request body is not valid JSON");
+    throw new HttpError(HTTP_BAD_REQUEST, "request body is not valid JSON");
   }
 };
 
 const optionalPaths = (value: unknown, label: string): string[] | undefined => {
   if (value === undefined) return undefined;
   if (!Array.isArray(value) || value.length > MAX_SELECTIONS) {
-    throw new HttpError(400, `${label} must be an array of at most ${MAX_SELECTIONS} paths`);
+    throw new HttpError(HTTP_BAD_REQUEST, `${label} must be an array of at most ${MAX_SELECTIONS} paths`);
   }
   const paths = value.map((entry) => {
-    if (typeof entry !== "string") throw new HttpError(400, `${label} entries must be strings`);
+    if (typeof entry !== "string") throw new HttpError(HTTP_BAD_REQUEST, `${label} entries must be strings`);
     const path = entry.trim();
     if (!path || path.length > MAX_PATH_LENGTH) {
-      throw new HttpError(400, `${label} entries must contain 1 to ${MAX_PATH_LENGTH} characters`);
+      throw new HttpError(HTTP_BAD_REQUEST, `${label} entries must contain 1 to ${MAX_PATH_LENGTH} characters`);
     }
     return path;
   });
@@ -135,22 +144,22 @@ const optionalPaths = (value: unknown, label: string): string[] | undefined => {
 
 const parseImportRequest = (value: unknown): ImportRequest => {
   if (value === null || typeof value !== "object" || Array.isArray(value)) {
-    throw new HttpError(400, "request body must be a JSON object");
+    throw new HttpError(HTTP_BAD_REQUEST, "request body must be a JSON object");
   }
   const input = value as Partial<Record<keyof ImportRequest, unknown>>;
-  if (typeof input.manifestPath !== "string") throw new HttpError(400, "manifestPath must be a string");
+  if (typeof input.manifestPath !== "string") throw new HttpError(HTTP_BAD_REQUEST, "manifestPath must be a string");
   const manifestPath = input.manifestPath.trim();
   if (!manifestPath || manifestPath.length > MAX_PATH_LENGTH) {
-    throw new HttpError(400, `manifestPath must contain 1 to ${MAX_PATH_LENGTH} characters`);
+    throw new HttpError(HTTP_BAD_REQUEST, `manifestPath must contain 1 to ${MAX_PATH_LENGTH} characters`);
   }
-  if (typeof input.replace !== "boolean") throw new HttpError(400, "replace must be a boolean");
+  if (typeof input.replace !== "boolean") throw new HttpError(HTTP_BAD_REQUEST, "replace must be a boolean");
 
   let instruction: string | undefined;
   if (input.instruction !== undefined) {
-    if (typeof input.instruction !== "string") throw new HttpError(400, "instruction must be a string");
+    if (typeof input.instruction !== "string") throw new HttpError(HTTP_BAD_REQUEST, "instruction must be a string");
     instruction = input.instruction.trim();
     if (instruction.length > MAX_INSTRUCTION_LENGTH) {
-      throw new HttpError(400, `instruction must contain at most ${MAX_INSTRUCTION_LENGTH} characters`);
+      throw new HttpError(HTTP_BAD_REQUEST, `instruction must contain at most ${MAX_INSTRUCTION_LENGTH} characters`);
     }
     if (!instruction) instruction = undefined;
   }
@@ -168,10 +177,10 @@ const parseImportRequest = (value: unknown): ImportRequest => {
 
 const serveAsset = async (response: ServerResponse, path: string): Promise<void> => {
   const asset = ASSETS[path];
-  if (!asset) throw new HttpError(404, "not found");
+  if (!asset) throw new HttpError(HTTP_NOT_FOUND, "not found");
   const assetPath = resolve(ASSET_ROOT, asset.file);
   const metadata = await stat(assetPath);
-  response.writeHead(200, {
+  response.writeHead(HTTP_OK, {
     "Content-Type": asset.contentType,
     "Content-Length": metadata.size,
   });
@@ -195,9 +204,9 @@ export const startKronikaGui = async (options: GuiServerOptions): Promise<GuiSer
   const server = createServer((request, response) => {
     securityHeaders(response);
     void (async () => {
-      if (!request.url) throw new HttpError(400, "request URL is missing");
+      if (!request.url) throw new HttpError(HTTP_BAD_REQUEST, "request URL is missing");
       if (request.headers.host !== expectedHost) {
-        throw new HttpError(403, "request host does not match this Kronika GUI session");
+        throw new HttpError(HTTP_FORBIDDEN, "request host does not match this Kronika GUI session");
       }
       const url = new URL(request.url, expectedOrigin);
 
@@ -207,7 +216,7 @@ export const startKronikaGui = async (options: GuiServerOptions): Promise<GuiSer
       }
       if (request.method === "GET" && url.pathname === "/api/config") {
         requireSession(request, expectedHost, expectedOrigin, token, false);
-        sendJson(response, 200, {
+        sendJson(response, HTTP_OK, {
           repo,
           defaults: {
             manifestPath: "kronika.sync.json",
@@ -232,11 +241,11 @@ export const startKronikaGui = async (options: GuiServerOptions): Promise<GuiSer
         const project = result.status === "imported" || result.status === "unchanged"
           ? loadSyncManifest(result.manifestPath)
           : retainedProject(result.manifestPath);
-        const statusCode = result.status === "conflicting" ? 409 : result.status === "rejected" ? 422 : 200;
+        const statusCode = result.status === "conflicting" ? HTTP_CONFLICT : result.status === "rejected" ? HTTP_UNPROCESSABLE : HTTP_OK;
         sendJson(response, statusCode, { result, project });
         return;
       }
-      throw new HttpError(404, "not found");
+      throw new HttpError(HTTP_NOT_FOUND, "not found");
     })().catch((error: unknown) => {
       if (response.headersSent) {
         response.destroy(error instanceof Error ? error : undefined);

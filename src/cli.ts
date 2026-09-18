@@ -39,6 +39,15 @@ type ParsedArguments = {
   replace: boolean;
   onboarding: OnboardingAction;
 };
+// The budgets a run starts with unless a flag says otherwise: source bytes in total and per
+// file, completion tokens, the Git diff a check reads, and how long one Brama request may take.
+const DEFAULT_MAX_INPUT_BYTES = 200_000;
+const DEFAULT_MAX_FILE_BYTES = 64_000;
+const DEFAULT_MAX_TOKENS = 8_000;
+const DEFAULT_MAX_DIFF_BYTES = 200_000;
+const DEFAULT_TIMEOUT_MS = 120_000;
+// The largest TCP port.
+const MAX_PORT = 65_535;
 
 const HELP = `Kronika — source-grounded documentation writing through Brama
 
@@ -75,11 +84,11 @@ Options:
   --head <ref>           Head Git commit for check (default: HEAD)
   --instruction <text>   Additional documentation goal
   --model <selector>     Brama model selector (default: KRONIKA_MODEL or any)
-  --max-input-bytes <n>  Total source budget (default: 200000)
-  --max-file-bytes <n>   Per-file source limit (default: 64000)
-  --max-tokens <n>       Completion token budget (default: 8000)
-  --max-diff-bytes <n>   Git diff budget for check (default: 200000)
-  --timeout-ms <n>       Brama request timeout (default: 120000)
+  --max-input-bytes <n>  Total source budget (default: ${DEFAULT_MAX_INPUT_BYTES})
+  --max-file-bytes <n>   Per-file source limit (default: ${DEFAULT_MAX_FILE_BYTES})
+  --max-tokens <n>       Completion token budget (default: ${DEFAULT_MAX_TOKENS})
+  --max-diff-bytes <n>   Git diff budget for check (default: ${DEFAULT_MAX_DIFF_BYTES})
+  --timeout-ms <n>       Brama request timeout (default: ${DEFAULT_TIMEOUT_MS})
   --apply                Atomically replace the target document
   --manifest <path>      Sync manifest inside the repository (default: kronika.sync.json)
   --state <path>         Sync state file inside the repository (default: kronika.sync-state.json)
@@ -132,12 +141,12 @@ const parseArguments = (argv: string[]): ParsedArguments => {
       sources: [],
       documents: [],
       model: process.env.KRONIKA_MODEL || "any",
-      maxInputBytes: 200_000,
-      maxFileBytes: 64_000,
-      maxTokens: 8_000,
+      maxInputBytes: DEFAULT_MAX_INPUT_BYTES,
+      maxFileBytes: DEFAULT_MAX_FILE_BYTES,
+      maxTokens: DEFAULT_MAX_TOKENS,
       port: 0,
-      timeoutMs: 120_000,
-      maxDiffBytes: 200_000,
+      timeoutMs: DEFAULT_TIMEOUT_MS,
+      maxDiffBytes: DEFAULT_MAX_DIFF_BYTES,
       apply: false,
       json: false,
       head: "HEAD",
@@ -159,11 +168,11 @@ const parseArguments = (argv: string[]): ParsedArguments => {
     sources: [],
     documents: [],
     model: process.env.KRONIKA_MODEL || "any",
-    maxInputBytes: 200_000,
-    maxFileBytes: 64_000,
-    maxTokens: 8_000,
-    timeoutMs: 120_000,
-    maxDiffBytes: 200_000,
+    maxInputBytes: DEFAULT_MAX_INPUT_BYTES,
+    maxFileBytes: DEFAULT_MAX_FILE_BYTES,
+    maxTokens: DEFAULT_MAX_TOKENS,
+    timeoutMs: DEFAULT_TIMEOUT_MS,
+    maxDiffBytes: DEFAULT_MAX_DIFF_BYTES,
     port: 0,
     apply: false,
     json: false,
@@ -198,7 +207,7 @@ const parseArguments = (argv: string[]): ParsedArguments => {
         break;
       case "--port": {
         const parsedPort = positiveIntegerArgument(flag, value);
-        if (parsedPort > 65_535) throw new Error("--port must be between 1 and 65535");
+        if (parsedPort > MAX_PORT) throw new Error(`--port must be between 1 and ${MAX_PORT}`);
         parsed.port = parsedPort;
         index += 1;
         break;
