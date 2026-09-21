@@ -2,12 +2,12 @@ import { execFileSync } from "node:child_process";
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { resolve } from "node:path";
 
-import { checkDocumentation } from "./checker.js";
+import { checkDocumentation } from "../docs/checker.js";
 import type {
   CompletionClient,
   DocumentationFinding,
-} from "./types.js";
-import { writeDocumentation } from "./writer.js";
+} from "../docs/model/types.js";
+import { writeDocumentation } from "../docs/writer.js";
 
 // `kronika sync` closes the loop the single-shot verbs leave open: `check`
 // audits one change and `write` regenerates one document, but nothing

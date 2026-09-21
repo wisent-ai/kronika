@@ -5,11 +5,11 @@
 // named infrastructure error instead of calling a provider directly.
 import { parseArgs } from "node:util";
 import { readFileSync, existsSync, writeFileSync } from "node:fs";
-import { validatePlan } from "./schema.mjs";
+import { validatePlan } from "../schema.mjs";
 import {
   expandPath, readJson, printReport, die, runCommand, isMain,
   resolveEndpoint, chatComplete, InfraDownError,
-} from "./lib.mjs";
+} from "../lib.mjs";
 
 const SCHEMA_PATH = new URL("../schemas/plan.schema.json", import.meta.url);
 const STANDARD_PATH = new URL("../WRITING-STANDARD.md", import.meta.url);
@@ -91,7 +91,7 @@ async function main() {
     },
   });
   if (!values.brief || !values.sources) {
-    printReport({ error: "usage", detail: "node src/author.mjs --brief brief.json --sources docs-sources.json [--repo path] [--out plan.json] [--model m]" });
+    printReport({ error: "usage", detail: "node src/stages/author.mjs --brief brief.json --sources docs-sources.json [--repo path] [--out plan.json] [--model m]" });
     process.exit(2);
   }
   const brief = readJson(values.brief);

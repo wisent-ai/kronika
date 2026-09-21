@@ -9,7 +9,7 @@ import type {
   CompletionClient,
   DocumentationFinding,
   SourceCollection,
-} from "./types.js";
+} from "./model/types.js";
 
 const CHECK_SYSTEM_PROMPT = `You are Kronika, Wisent's documentation consistency gate.
 

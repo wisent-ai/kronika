@@ -5,8 +5,8 @@ import { createServer, type IncomingMessage, type Server, type ServerResponse } 
 import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
-import { initializeDocumentationWorkspace } from "./project.js";
-import { loadSyncManifest, type SyncManifest } from "./sync.js";
+import { initializeDocumentationWorkspace } from "./sync/project.js";
+import { loadSyncManifest, type SyncManifest } from "./sync/sync.js";
 
 const LOOPBACK_HOST = "127.0.0.1";
 const MAX_REQUEST_BYTES = 64 * 1024;

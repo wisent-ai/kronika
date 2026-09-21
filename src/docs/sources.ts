@@ -12,7 +12,7 @@ import type {
   SourceCollection,
   SourceDocument,
   SourceOptions,
-} from "./types.js";
+} from "./model/types.js";
 
 const AUTOMATIC_TEXT_EXTENSIONS: Record<string, true> = {
   ".c": true,

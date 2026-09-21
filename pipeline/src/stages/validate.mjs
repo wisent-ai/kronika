@@ -10,8 +10,8 @@
 import { parseArgs } from "node:util";
 import { readFileSync, existsSync } from "node:fs";
 import path from "node:path";
-import { validatePlan } from "./schema.mjs";
-import { expandPath, readJson, printReport, runCommand, fetchText, isMain } from "./lib.mjs";
+import { validatePlan } from "../schema.mjs";
+import { expandPath, readJson, printReport, runCommand, fetchText, isMain } from "../lib.mjs";
 
 // A word used on this many pages is a term the plan must declare.
 const TERM_PAGE_THRESHOLD = 3;
@@ -277,7 +277,7 @@ async function main() {
     options: { plan: { type: "string" }, brief: { type: "string" }, repo: { type: "string" } },
   });
   if (!values.plan || !values.brief) {
-    printReport({ error: "usage", detail: "node src/validate.mjs --plan plan.json --brief brief.json [--repo path]" });
+    printReport({ error: "usage", detail: "node src/stages/validate.mjs --plan plan.json --brief brief.json [--repo path]" });
     process.exit(2);
   }
   const plan = readJson(values.plan);

@@ -13,7 +13,7 @@
 //   declared limits/quotas exist -> limits
 import { parseArgs } from "node:util";
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
-import { expandPath, readJson, printReport, runCommand, isMain } from "./lib.mjs";
+import { expandPath, readJson, printReport, runCommand, isMain } from "../lib.mjs";
 
 function parseCommandList(helpText) {
   // clap layout: a "Commands:" header, then "  <name>  <description>" lines.
@@ -141,7 +141,7 @@ async function main() {
     options: { sources: { type: "string" }, out: { type: "string" } },
   });
   if (positionals.length !== 1 || !values.sources) {
-    printReport({ error: "usage", detail: "node src/detect.mjs <productRepo> --sources <docs-sources.json> [--out brief.json]" });
+    printReport({ error: "usage", detail: "node src/stages/detect.mjs <productRepo> --sources <docs-sources.json> [--out brief.json]" });
     process.exit(2);
   }
   const brief = await detect(positionals[0], values.sources);

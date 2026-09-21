@@ -6,7 +6,7 @@
 import { parseArgs } from "node:util";
 import { mkdirSync, writeFileSync } from "node:fs";
 import path from "node:path";
-import { expandPath, readJson, printReport, isMain } from "./lib.mjs";
+import { expandPath, readJson, printReport, isMain } from "../lib.mjs";
 
 function renderSection(section) {
   const out = { title: section.title };
@@ -79,7 +79,7 @@ async function main() {
     options: { plan: { type: "string" }, out: { type: "string" } },
   });
   if (!values.plan || !values.out) {
-    printReport({ error: "usage", detail: "node src/emit.mjs --plan plan.json --out <dir>" });
+    printReport({ error: "usage", detail: "node src/stages/emit.mjs --plan plan.json --out <dir>" });
     process.exit(2);
   }
   const plan = readJson(values.plan);

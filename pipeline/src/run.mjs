@@ -5,10 +5,10 @@
 import { parseArgs } from "node:util";
 import { mkdirSync, writeFileSync } from "node:fs";
 import path from "node:path";
-import { detect } from "./detect.mjs";
-import { runValidators } from "./validate.mjs";
-import { authorPlan } from "./author.mjs";
-import { emitPlan } from "./emit.mjs";
+import { detect } from "./stages/detect.mjs";
+import { runValidators } from "./stages/validate.mjs";
+import { authorPlan } from "./stages/author.mjs";
+import { emitPlan } from "./stages/emit.mjs";
 import { expandPath, readJson, printReport, isMain, resolveEndpoint, InfraDownError } from "./lib.mjs";
 
 async function main() {

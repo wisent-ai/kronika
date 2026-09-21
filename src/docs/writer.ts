@@ -16,7 +16,7 @@ import type {
   CompletionClient,
   WriteDocumentationOptions,
   WriteDocumentationResult,
-} from "./types.js";
+} from "./model/types.js";
 
 // Fewer characters than this is a refusal or a fragment, not documentation.
 const MIN_DOCUMENT_CHARS = 20;

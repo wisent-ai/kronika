@@ -2,16 +2,16 @@
 
 import { execFileSync } from "node:child_process";
 
-import { BramaClient } from "./brama.js";
-import { checkDocumentation } from "./checker.js";
-import type { OnboardingAction } from "./onboarding.js";
-import { recordWorkspaceInitialized, renderOnboardingView, runOnboardingAction } from "./onboarding.js";
+import { BramaClient } from "./docs/model/brama.js";
+import { checkDocumentation } from "./docs/checker.js";
+import type { OnboardingAction } from "./onboarding/onboarding.js";
+import { recordWorkspaceInitialized, renderOnboardingView, runOnboardingAction } from "./onboarding/onboarding.js";
 import { startKronikaGui } from "./gui.js";
-import { collectSources } from "./sources.js";
-import { initializeDocumentationWorkspace } from "./project.js";
-import type { CheckDocumentationOptions, WriteDocumentationOptions } from "./types.js";
-import { writeDocumentation } from "./writer.js";
-import { syncDocumentation } from "./sync.js";
+import { collectSources } from "./docs/sources.js";
+import { initializeDocumentationWorkspace } from "./sync/project.js";
+import type { CheckDocumentationOptions, WriteDocumentationOptions } from "./docs/model/types.js";
+import { writeDocumentation } from "./docs/writer.js";
+import { syncDocumentation } from "./sync/sync.js";
 
 type ParsedArguments = {
   command: "check" | "write" | "sources" | "sync" | "init" | "gui" | "onboarding" | "help";

@@ -4,7 +4,7 @@ import type {
   ChatMessage,
   SourceCollection,
   WriteDocumentationOptions,
-} from "./types.js";
+} from "./model/types.js";
 
 const SYSTEM_PROMPT = `You are Kronika, Wisent's documentation writer.
 

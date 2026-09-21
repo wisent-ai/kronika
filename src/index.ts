@@ -1,20 +1,20 @@
-export { BramaClient, signedHeaders } from "./brama.js";
+export { BramaClient, signedHeaders } from "./docs/model/brama.js";
 export {
   buildDocumentationCheckMessages,
   checkDocumentation,
   parseDocumentationCheck,
-} from "./checker.js";
-export { buildDocumentationMessages } from "./prompt.js";
-export { collectSources } from "./sources.js";
-export { writeDocumentation } from "./writer.js";
-export { initializeDocumentationWorkspace } from "./project.js";
-export type { InitializeWorkspaceOptions, InitializeWorkspaceResult } from "./project.js";
+} from "./docs/checker.js";
+export { buildDocumentationMessages } from "./docs/prompt.js";
+export { collectSources } from "./docs/sources.js";
+export { writeDocumentation } from "./docs/writer.js";
+export { initializeDocumentationWorkspace } from "./sync/project.js";
+export type { InitializeWorkspaceOptions, InitializeWorkspaceResult } from "./sync/project.js";
 export {
   loadSyncManifest,
   SYNC_MANIFEST_FILE,
   SYNC_STATE_FILE,
   syncDocumentation,
-} from "./sync.js";
+} from "./sync/sync.js";
 export type {
   SyncDefaults,
   SyncDocument,
@@ -23,7 +23,7 @@ export type {
   SyncOutcome,
   SyncResult,
   SyncState,
-} from "./sync.js";
+} from "./sync/sync.js";
 export type {
   ChatMessage,
   CheckDocumentationOptions,
@@ -38,4 +38,4 @@ export type {
   SourceOptions,
   WriteDocumentationOptions,
   WriteDocumentationResult,
-} from "./types.js";
+} from "./docs/model/types.js";
