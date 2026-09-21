@@ -59,93 +59,10 @@ import type {
 // the manifest is the human's declaration of which documents are maintained
 // from which evidence, and the state file is the auditable record of the
 // last commit each document was reconciled against.
+export { loadSyncManifest } from "./state.js";
 
-const git = (repo: string, args: string[]): string => execFileSync(
-  "git",
-  ["-C", repo, ...args],
-  { encoding: "utf8", stdio: ["ignore", "pipe", "pipe"], maxBuffer: 16 * 1024 * 1024 },
-).trim();
+import { changedPathsFor, git, loadSyncManifest, loadSyncState, rewriteInstruction } from "./state.js";
 
-export const loadSyncManifest = (path: string): SyncManifest => {
-  if (!existsSync(path)) {
-    throw new Error(`Sync manifest is missing: ${path}. Declare the maintained documents first.`);
-  }
-  let parsed: unknown;
-  try {
-    parsed = JSON.parse(readFileSync(path, "utf8"));
-  } catch {
-    throw new Error(`Sync manifest is not valid JSON: ${path}`);
-  }
-  const manifest = parsed as SyncManifest;
-  if (manifest.schemaVersion !== 1) {
-    throw new Error(`Unsupported sync manifest schemaVersion in ${path}`);
-  }
-  if (!Array.isArray(manifest.documents) || manifest.documents.length === 0) {
-    throw new Error(`Sync manifest declares no documents: ${path}`);
-  }
-  for (const document of manifest.documents) {
-    if (typeof document.output !== "string" || document.output.length === 0) {
-      throw new Error(`Sync manifest entry without an output path in ${path}`);
-    }
-    if (!Array.isArray(document.sources) || document.sources.length === 0) {
-      throw new Error(`Sync manifest entry ${document.output} declares no sources`);
-    }
-  }
-  return manifest;
-};
-
-const loadSyncState = (path: string): SyncState => {
-  if (!existsSync(path)) {
-    return { schemaVersion: 1, documents: {} };
-  }
-  let parsed: unknown;
-  try {
-    parsed = JSON.parse(readFileSync(path, "utf8"));
-  } catch {
-    throw new Error(`Sync state is not valid JSON: ${path}. Fix or delete it to re-baseline.`);
-  }
-  const state = parsed as SyncState;
-  if (state.schemaVersion !== 1) {
-    throw new Error(`Unsupported sync state schemaVersion in ${path}`);
-  }
-  if (state.documents === undefined || state.documents === null) {
-    state.documents = {};
-  }
-  return state;
-};
-
-/** Changed paths between two commits, restricted to this document's evidence
- * and to the document itself — a hand edit to the document must advance its
- * baseline exactly like a source change that the audit passes. */
-const changedPathsFor = (
-  repo: string,
-  baseSha: string,
-  headSha: string,
-  document: SyncDocument,
-): string[] => {
-  const names = git(repo, [
-    "diff",
-    "--name-only",
-    "--find-renames",
-    `${baseSha}...${headSha}`,
-    "--",
-    ...document.sources,
-    document.output,
-  ]);
-  return names.length === 0 ? [] : names.split("\n");
-};
-
-const rewriteInstruction = (document: SyncDocument, findings: DocumentationFinding[]): string => {
-  const defects = findings
-    .filter((finding) => finding.severity === "blocker")
-    .map((finding) => {
-      const change = finding.requiredChange === null ? "" : ` Required change: ${finding.requiredChange}`;
-      return `- [${finding.code}] ${finding.message}${change}`;
-    })
-    .join("\n");
-  const standing = document.instruction === undefined ? "" : `${document.instruction}\n\n`;
-  return `${standing}Preserve the document's existing structure, voice, and correct content. Correct exactly the audited defects below; do not re-author sections the audit did not name.\n${defects}`;
-};
 
 export const syncDocumentation = async (
   options: SyncOptions,
