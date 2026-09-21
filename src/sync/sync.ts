@@ -9,6 +9,31 @@ import type {
 } from "../docs/model/types.js";
 import { writeDocumentation } from "../docs/writer.js";
 
+export {
+  SYNC_MANIFEST_FILE,
+  SYNC_STATE_FILE,
+} from "./shape.js";
+export type {
+  SyncDefaults,
+  SyncDocument,
+  SyncManifest,
+  SyncOptions,
+  SyncOutcome,
+  SyncResult,
+  SyncState,
+} from "./shape.js";
+
+import { SYNC_STATE_FILE } from "./shape.js";
+import type {
+  SyncDocument,
+  SyncManifest,
+  SyncOptions,
+  SyncOutcome,
+  SyncResult,
+  SyncState,
+  SyncStateEntry,
+} from "./shape.js";
+
 // `kronika sync` closes the loop the single-shot verbs leave open: `check`
 // audits one change and `write` regenerates one document, but nothing
 // remembered where documentation last agreed with the source. Sync carries
@@ -34,70 +59,6 @@ import { writeDocumentation } from "../docs/writer.js";
 // the manifest is the human's declaration of which documents are maintained
 // from which evidence, and the state file is the auditable record of the
 // last commit each document was reconciled against.
-
-export const SYNC_MANIFEST_FILE = "kronika.sync.json";
-export const SYNC_STATE_FILE = "kronika.sync-state.json";
-
-export type SyncDocument = {
-  /** Repository-relative documentation file this entry maintains. */
-  output: string;
-  /** Repository-relative files or directories that are this document's
-   * evidence; also the pathspecs drift detection filters the Git diff by. */
-  sources: string[];
-  /** Standing documentation goal passed to both the audit and the rewrite. */
-  instruction?: string;
-  model?: string;
-  maxTokens?: number;
-  maxInputBytes?: number;
-  maxFileBytes?: number;
-  maxDiffBytes?: number;
-};
-
-export type SyncManifest = {
-  schemaVersion: number;
-  documents: SyncDocument[];
-};
-
-type SyncStateEntry = {
-  headSha: string;
-  syncedAt: string;
-  lastAction: string;
-};
-
-export type SyncState = {
-  schemaVersion: number;
-  documents: Record<string, SyncStateEntry>;
-};
-
-export type SyncOutcome = {
-  output: string;
-  action: "baseline" | "current" | "advanced" | "checked-current" | "rewritten" | "failed";
-  detail: string;
-  changedPaths: string[];
-  findings: DocumentationFinding[];
-};
-
-export type SyncDefaults = {
-  model: string;
-  maxTokens: number;
-  maxInputBytes: number;
-  maxFileBytes: number;
-  maxDiffBytes: number;
-};
-
-export type SyncOptions = {
-  repo: string;
-  manifestPath: string;
-  statePath: string;
-  dryRun: boolean;
-  defaults: SyncDefaults;
-};
-
-export type SyncResult = {
-  headSha: string;
-  outcomes: SyncOutcome[];
-  stateWritten: boolean;
-};
 
 const git = (repo: string, args: string[]): string => execFileSync(
   "git",
