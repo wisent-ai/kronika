@@ -4,6 +4,11 @@
 
 ## Primary interfaces
 
+A command line Kronika cannot read — an unknown command or option, a missing
+or invalid flag value — prints the refusal and the help on stderr and exits
+`2`. Exit status `1` is reserved for a well-formed command that failed or
+found a blocker.
+
 ### Adopt existing documents into the project manifest
 
 ```bash

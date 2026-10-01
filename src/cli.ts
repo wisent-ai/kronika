@@ -15,9 +15,20 @@ import { syncDocumentation } from "./sync/sync.js";
 
 import { HELP } from "./cli/help.js";
 import { parseArguments } from "./cli/arguments.js";
+import type { ParsedArguments } from "./cli/arguments.js";
 
 const main = async (): Promise<void> => {
-  const args = parseArguments(process.argv.slice(2));
+  // Everything parseArguments refuses is the invocation itself: exit 2 with
+  // the help, apart from a failed run's 1 (cli.md rule 10).
+  let args: ParsedArguments;
+  try {
+    args = parseArguments(process.argv.slice(2));
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    process.stderr.write(`kronika: ${message}\n\n${HELP}\n`);
+    process.exitCode = 2;
+    return;
+  }
   if (args.command === "help") {
     process.stdout.write(`${HELP}\n`);
     return;
