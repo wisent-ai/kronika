@@ -8,7 +8,7 @@
   "type": "module",
   "bin": {
     "kronika": "dist/src/cli.js",
-    "docs-cli": "pipeline/src/run.mjs"
+    "kronika-site": "pipeline/src/run.mjs"
   },
   "exports": {
     ".": "./dist/src/index.js"

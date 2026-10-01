@@ -28,7 +28,7 @@ kind exists to choose), and **coverage** (every completion-gate kind that
 `brief.json` says applies is present).
 
 Commands: `npm run docs:detect` · `npm run docs:validate` · `npm run docs:emit`
-(or the `docs-cli` binary). Model access resolves through Brama only —
+(or the `kronika-site` binary, which answers `--help` and exits 2 on an unknown option or a missing argument). Model access resolves through Brama only —
 `BRAMA_URL`, then the local Stado resolver's brama adapter; there is no
 provider fallback. There is no quality judge and no scoring step: the
 writing standard is what the author reads, the mechanical validators are

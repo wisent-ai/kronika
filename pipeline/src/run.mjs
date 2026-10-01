@@ -11,21 +11,36 @@ import { authorPlan } from "./stages/author.mjs";
 import { emitPlan } from "./stages/emit.mjs";
 import { expandPath, readJson, printReport, isMain, resolveEndpoint, InfraDownError } from "./lib.mjs";
 
-async function main() {
-  const { values, positionals } = parseArgs({
-    allowPositionals: true,
-    options: {
-      sources: { type: "string" },
-      plan: { type: "string" },
-      out: { type: "string" },
+const USAGE = "kronika-site <productRepo> --sources <file> [--plan <file>] [--out <dir>] [--model <selector>]";
 
-      model: { type: "string", default: "default" },
-    },
-  });
+async function main() {
+  const argv = process.argv.slice(2);
+  if (argv.includes("--help") || argv.includes("-h")) {
+    process.stdout.write(`usage: ${USAGE}\n`);
+    return;
+  }
+  let parsed;
+  try {
+    parsed = parseArgs({
+      args: argv,
+      allowPositionals: true,
+      options: {
+        sources: { type: "string" },
+        plan: { type: "string" },
+        out: { type: "string" },
+
+        model: { type: "string", default: "default" },
+      },
+    });
+  } catch (error) {
+    printReport({ error: "usage", detail: `${error.message}; usage: ${USAGE}` });
+    process.exit(2);
+  }
+  const { values, positionals } = parsed;
   if (positionals.length !== 1 || !values.sources) {
     printReport({
       error: "usage",
-      detail: "node src/run.mjs <productRepo> --sources <file> [--plan <file>] [--out <dir>]",
+      detail: USAGE,
     });
     process.exit(2);
   }
