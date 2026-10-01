@@ -156,17 +156,21 @@ local file under `${XDG_STATE_HOME:-~/.local/state}/kronika/onboarding.json`;
 
 ```bash
 export BRAMA_URL=https://brama.wisent.com
-export BRAMA_API_KEY='<runtime-injected-client-bearer>'
+export BRAMA_API_KEY_REF='kronika-brama#bearer'
 # Optional when the Brama client identity is also bound to an agent:
 export WISENT_APP_AGENT_ID=kronika
-export WISENT_APP_AGENT_AUTH_SECRET='<runtime-injected-signing-secret>'
+export WISENT_APP_AGENT_AUTH_SECRET_REF='kronika-brama#signing_secret'
 export KRONIKA_MODEL=any
 ```
 
-`MODEL_ROUTER_URL` and `MODEL_ROUTER_TOKEN` are accepted as aliases for
-`BRAMA_URL` and `BRAMA_API_KEY`. The bearer is always required. The agent ID and
-HMAC secret are optional but must be supplied together. Never commit either
-credential; materialize them through the deployment's scoped secret boundary.
+`MODEL_ROUTER_URL` is accepted for `BRAMA_URL`. The two `_REF` variables are
+Skarbiec references `ITEM#FIELD`, never secrets: the CLI reads each value with
+`skarbiec get ITEM --field FIELD` (`SKARBIEC_BIN` names another executable), so
+no bearer or signing secret sits in the environment or argv. The bearer
+reference is always required; the agent ID and signing-secret reference are
+optional but go together. A missing reference, one that is not `ITEM#FIELD`,
+a failed `skarbiec get` or an empty field is refused with the variable and the
+cause.
 
 ## Library API
 
@@ -185,7 +189,7 @@ if (initialized.status === "conflicting" || initialized.status === "rejected") {
 
 const client = new BramaClient({
   url: process.env.BRAMA_URL!,
-  apiKey: process.env.BRAMA_API_KEY!,
+  apiKey: bearerFromYourSecretBoundary,
 });
 
 const result = await writeDocumentation({

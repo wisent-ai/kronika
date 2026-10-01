@@ -67,8 +67,9 @@ Options:
 
 Brama environment:
   BRAMA_URL (or MODEL_ROUTER_URL)
+  BRAMA_API_KEY_REF               Skarbiec ITEM#FIELD holding the Brama bearer
   WISENT_APP_AGENT_ID
-  WISENT_APP_AGENT_AUTH_SECRET
+  WISENT_APP_AGENT_AUTH_SECRET_REF  Skarbiec ITEM#FIELD holding the signing secret
   KRONIKA_MODEL (optional)
 
 Without --apply, write prints the generated Markdown and does not change files.

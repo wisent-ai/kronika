@@ -16,6 +16,7 @@ import { syncDocumentation } from "./sync/sync.js";
 import { HELP } from "./cli/help.js";
 import { parseArguments } from "./cli/arguments.js";
 import type { ParsedArguments } from "./cli/arguments.js";
+import { readCredential } from "./cli/skarbiec.js";
 
 const main = async (): Promise<void> => {
   // Everything parseArguments refuses is the invocation itself: exit 2 with
@@ -97,11 +98,15 @@ const main = async (): Promise<void> => {
   }
 
   const bramaUrl = process.env.BRAMA_URL || process.env.MODEL_ROUTER_URL;
-  const apiKey = process.env.BRAMA_API_KEY || process.env.MODEL_ROUTER_TOKEN;
+  // Only Skarbiec references travel in the environment; the secrets
+  // themselves are read from Skarbiec here (cli.md rule 15).
+  const apiKeyRef = process.env.BRAMA_API_KEY_REF;
   const agentId = process.env.WISENT_APP_AGENT_ID;
-  const authSecret = process.env.WISENT_APP_AGENT_AUTH_SECRET;
+  const authSecretRef = process.env.WISENT_APP_AGENT_AUTH_SECRET_REF;
   if (!bramaUrl) throw new Error("BRAMA_URL or MODEL_ROUTER_URL is required");
-  if (!apiKey) throw new Error("BRAMA_API_KEY or MODEL_ROUTER_TOKEN is required");
+  if (!apiKeyRef) throw new Error("BRAMA_API_KEY_REF is required: the Skarbiec ITEM#FIELD holding the Brama bearer");
+  const apiKey = readCredential(apiKeyRef, "BRAMA_API_KEY_REF");
+  const authSecret = authSecretRef ? readCredential(authSecretRef, "WISENT_APP_AGENT_AUTH_SECRET_REF") : undefined;
 
   const client = new BramaClient({
     url: bramaUrl,
