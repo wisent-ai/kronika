@@ -1,6 +1,5 @@
-<!-- Moved out of README.md on 2026-09-21: that file stood at 512 lines,
-     past the three-hundred-line limit every file in this workshop lives
-     under. Nothing here was rewritten. -->
+<!-- Moved out of README.md, which had passed the three-hundred-line limit
+     every file in this workshop lives under. Nothing here was rewritten. -->
 
 ## Primary interfaces
 
