@@ -138,10 +138,13 @@ export function validatePlan(plan) {
           if (!isObj(block.code)) {
             err(kp, "must be an object");
           } else {
-            closed(block.code, kp, ["label", "code"]);
+            // `language` is what DocumentationLayout highlights by; emit
+            // passes the code object through, so the plan may carry it.
+            closed(block.code, kp, ["language", "label", "code"]);
             if (required(block.code, kp, ["code"])) {
               str(block.code.code, `${kp}.code`);
               if ("label" in block.code) str(block.code.label, `${kp}.label`);
+              if ("language" in block.code) str(block.code.language, `${kp}.language`);
             }
           }
         }
