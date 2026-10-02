@@ -73,13 +73,17 @@ export function die(report, code = 1) {
   process.exit(code);
 }
 
-/** Run a binary directly (no shell). Resolves with { ok, code, stdout, stderr, error }. */
-export function runCommand(file, args, { timeoutMs = 15000, cwd } = {}) {
+/**
+ * Run a binary directly (no shell). Resolves with { ok, code, stdout, stderr, error }
+ * when it exits. Its standard input is closed at once, so a binary that would
+ * read a prompt sees end of input and answers instead of waiting.
+ */
+export function runCommand(file, args, { cwd } = {}) {
   return new Promise((resolve) => {
-    execFile(
+    const child = execFile(
       file,
       args,
-      { timeout: timeoutMs, cwd, maxBuffer: 16 * 1024 * 1024, encoding: "utf8" },
+      { cwd, maxBuffer: 16 * 1024 * 1024, encoding: "utf8" },
       (error, stdout, stderder) => {
         resolve({
           ok: !error,
@@ -90,22 +94,19 @@ export function runCommand(file, args, { timeoutMs = 15000, cwd } = {}) {
         });
       },
     );
+    child.stdin?.end();
   });
 }
 
-/** Fetch a URL as text with a hard timeout. Resolves { ok, status?, text?, error? }. */
-export async function fetchText(url, timeoutMs = 15000) {
-  const ctl = new AbortController();
-  const t = setTimeout(() => ctl.abort(), timeoutMs);
+/** Fetch a URL as text. Resolves { ok, status?, text?, error? } on the answer or the connection failure. */
+export async function fetchText(url) {
   try {
-    const res = await fetch(url, { signal: ctl.signal, redirect: "follow" });
+    const res = await fetch(url, { redirect: "follow" });
     const text = await res.text();
     if (!res.ok) return { ok: false, status: res.status, error: `HTTP ${res.status}` };
     return { ok: true, status: res.status, text };
   } catch (e) {
-    return { ok: false, error: e.name === "AbortError" ? `timeout after ${timeoutMs}ms` : String(e.cause?.code ?? e.message) };
-  } finally {
-    clearTimeout(t);
+    return { ok: false, error: String(e.cause?.code ?? e.message) };
   }
 }
 
@@ -130,29 +131,23 @@ export class InfraDownError extends Error {
 
 /**
  * One OpenAI-compatible chat completion. The model infrastructure being
- * unreachable throws InfraDownError: a network-level failure (refused, DNS,
- * timeout) or the resolver adapter answering a gateway-unavailability status
+ * unreachable throws InfraDownError: a network-level failure (refused, DNS)
+ * or the resolver adapter answering a gateway-unavailability status
  * (502/503/504 — the adapter is up but Brama behind it is not). An answering
  * endpoint with any other bad status throws a plain Error. Never calls a
- * provider directly.
+ * provider directly, and no clock cuts the request off.
  */
-export async function chatComplete({ endpoint, messages, model = "default", timeoutMs = 180000 }) {
+export async function chatComplete({ endpoint, messages, model = "default" }) {
   const url = `${endpoint}/v1/chat/completions`;
-  const ctl = new AbortController();
-  const t = setTimeout(() => ctl.abort(), timeoutMs);
   let res;
   try {
     res = await fetch(url, {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ model, messages, temperature: 0 }),
-      signal: ctl.signal,
     });
   } catch (e) {
-    const detail = e.name === "AbortError" ? `timeout after ${timeoutMs}ms` : String(e.cause?.code ?? e.cause?.message ?? e.message);
-    throw new InfraDownError(url, detail);
-  } finally {
-    clearTimeout(t);
+    throw new InfraDownError(url, String(e.cause?.code ?? e.cause?.message ?? e.message));
   }
   if (!res.ok) {
     const body = (await res.text()).slice(0, 400).trim();

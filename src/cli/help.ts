@@ -7,7 +7,6 @@ import {
   DEFAULT_MAX_FILE_BYTES,
   DEFAULT_MAX_INPUT_BYTES,
   DEFAULT_MAX_TOKENS,
-  DEFAULT_TIMEOUT_MS,
 } from "./budgets.js";
 
 
@@ -50,7 +49,6 @@ Options:
   --max-file-bytes <n>   Per-file source limit (default: ${DEFAULT_MAX_FILE_BYTES})
   --max-tokens <n>       Completion token budget (default: ${DEFAULT_MAX_TOKENS})
   --max-diff-bytes <n>   Git diff budget for check (default: ${DEFAULT_MAX_DIFF_BYTES})
-  --timeout-ms <n>       Brama request timeout (default: ${DEFAULT_TIMEOUT_MS})
   --apply                Atomically replace the target document
   --manifest <path>      Sync manifest inside the repository (default: kronika.sync.json)
   --state <path>         Sync state file inside the repository (default: kronika.sync-state.json)

@@ -11,7 +11,6 @@ export type BramaClientOptions = {
   apiKey: string;
   agentId?: string;
   authSecret?: string;
-  timeoutMs?: number;
   fetchImpl?: typeof fetch;
 };
 
@@ -74,7 +73,6 @@ export class BramaClient implements CompletionClient {
   readonly #apiKey: string;
   readonly #agentId: string | undefined;
   readonly #authSecret: string | undefined;
-  readonly #timeoutMs: number;
   readonly #fetch: typeof fetch;
 
   constructor(options: BramaClientOptions) {
@@ -88,7 +86,6 @@ export class BramaClient implements CompletionClient {
     this.#apiKey = options.apiKey;
     this.#agentId = options.agentId;
     this.#authSecret = options.authSecret;
-    this.#timeoutMs = options.timeoutMs ?? 120_000;
     this.#fetch = options.fetchImpl ?? fetch;
   }
 
@@ -99,31 +96,19 @@ export class BramaClient implements CompletionClient {
       max_tokens: request.maxTokens,
     });
 
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), this.#timeoutMs);
-    let response: Response;
-    try {
-      const headers: Record<string, string> = {
-        "content-type": "application/json",
-        authorization: `Bearer ${this.#apiKey}`,
-        ...(this.#agentId && this.#authSecret
-          ? signedHeaders(body, this.#agentId, this.#authSecret)
-          : {}),
-      };
-      response = await this.#fetch(`${this.#url}/v1/chat/completions`, {
-        method: "POST",
-        headers,
-        body,
-        signal: controller.signal,
-      });
-    } catch (error: unknown) {
-      if (error instanceof Error && error.name === "AbortError") {
-        throw new Error(`Brama request timed out after ${this.#timeoutMs}ms`);
-      }
-      throw error;
-    } finally {
-      clearTimeout(timeout);
-    }
+    // No clock on the request: it ends with Brama's answer or a transport error.
+    const headers: Record<string, string> = {
+      "content-type": "application/json",
+      authorization: `Bearer ${this.#apiKey}`,
+      ...(this.#agentId && this.#authSecret
+        ? signedHeaders(body, this.#agentId, this.#authSecret)
+        : {}),
+    };
+    const response = await this.#fetch(`${this.#url}/v1/chat/completions`, {
+      method: "POST",
+      headers,
+      body,
+    });
 
     const responseText = await response.text();
     let data: unknown;

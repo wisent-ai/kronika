@@ -78,11 +78,11 @@ async function validateClaims(plan, brief, repo) {
       if (!allowed.ok) out = { ok: false, error: allowed.error };
       else if (!binary) out = { ok: false, error: `no probed cli binary in brief for product "${product}"` };
       else {
-        const run = await runCommand(binary, allowed.args, { timeoutMs: 15000, cwd: repo });
+        const run = await runCommand(binary, allowed.args, { cwd: repo });
         out = run.ok ? { ok: true, text: run.stdout } : { ok: false, error: `command failed: ${run.error}` };
       }
     } else if (src.kind === "url") {
-      const res = await fetchText(src.location, 15000);
+      const res = await fetchText(src.location);
       out = res.ok ? { ok: true, text: res.text } : { ok: false, error: `fetch failed: ${res.error}` };
     } else {
       out = { ok: false, error: `unknown source kind "${src.kind}"` };
@@ -127,7 +127,7 @@ async function validateDrift(plan, brief, repo) {
   async function helpFor(cmdPath) {
     const key = cmdPath.join(" ");
     if (!helpCache.has(key)) {
-      helpCache.set(key, await runCommand(binary, [...cmdPath, "--help"], { timeoutMs: 15000, cwd: repo }));
+      helpCache.set(key, await runCommand(binary, [...cmdPath, "--help"], { cwd: repo }));
     }
     return helpCache.get(key);
   }

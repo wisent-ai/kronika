@@ -6,7 +6,7 @@ import { randomUUID } from "node:crypto";
 import { mkdir, readFile, rename, writeFile } from "node:fs/promises";
 import { dirname } from "node:path";
 
-import { JOURNEY_ID, JOURNEY_VERSION, PRODUCT_ID, REQUEST_TIMEOUT_MS, STATE_PATH } from "./shapes.js";
+import { JOURNEY_ID, JOURNEY_VERSION, PRODUCT_ID, STATE_PATH } from "./shapes.js";
 import type { Bundle, OnboardingEvent, Progress, State } from "./shapes.js";
 import { isRecord } from "./bundle.js";
 import { canonicalFallback, validateBundle } from "./bundle.js";
@@ -58,25 +58,21 @@ export class StadoTransport {
       `/integration/${encodeURIComponent(this.client)}/onboarding/${PRODUCT_ID}/${operation}`,
       base,
     );
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
     try {
       const response = await fetch(endpoint, {
         method: "POST",
         headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
         body: JSON.stringify(body),
-        signal: controller.signal,
       });
       const envelope: unknown = await response.json();
       if (!response.ok || !isRecord(envelope) || envelope.ok !== true || !("result" in envelope)) {
-        throw new Error("onboarding control plane rejected the request");
+        const said = isRecord(envelope) && typeof envelope.error === "string" ? `: ${envelope.error}` : "";
+        throw new Error(`onboarding control plane refused ${operation} with HTTP ${response.status}${said}`);
       }
       return envelope.result;
     } catch (error) {
       this.available = false;
       throw error;
-    } finally {
-      clearTimeout(timeout);
     }
   }
 

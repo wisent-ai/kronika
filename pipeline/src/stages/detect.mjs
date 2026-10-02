@@ -46,8 +46,8 @@ export async function detect(productRepo, sourcesFile) {
   if (declared.binary) {
     const binary = expandPath(declared.binary, repo);
     const s = { declared: true, binary, ok: false };
-    const ver = await runCommand(binary, ["--version"], { timeoutMs: 10000, cwd: repo });
-    const help = await runCommand(binary, ["--help"], { timeoutMs: 10000, cwd: repo });
+    const ver = await runCommand(binary, ["--version"], { cwd: repo });
+    const help = await runCommand(binary, ["--help"], { cwd: repo });
     if (ver.ok && help.ok) {
       s.ok = true;
       s.version = ver.stdout.trim().split("\n")[0].trim().split(/\s+/).pop();

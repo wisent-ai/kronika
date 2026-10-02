@@ -8,7 +8,6 @@ import {
   DEFAULT_MAX_FILE_BYTES,
   DEFAULT_MAX_INPUT_BYTES,
   DEFAULT_MAX_TOKENS,
-  DEFAULT_TIMEOUT_MS,
   MAX_PORT,
 } from "./budgets.js";
 
@@ -23,7 +22,6 @@ type ParsedArguments = {
   maxFileBytes: number;
   maxTokens: number;
   port: number;
-  timeoutMs: number;
   maxDiffBytes: number;
   apply: boolean;
   json: boolean;
@@ -65,7 +63,6 @@ const parseArguments = (argv: string[]): ParsedArguments => {
       maxFileBytes: DEFAULT_MAX_FILE_BYTES,
       maxTokens: DEFAULT_MAX_TOKENS,
       port: 0,
-      timeoutMs: DEFAULT_TIMEOUT_MS,
       maxDiffBytes: DEFAULT_MAX_DIFF_BYTES,
       apply: false,
       json: false,
@@ -91,7 +88,6 @@ const parseArguments = (argv: string[]): ParsedArguments => {
     maxInputBytes: DEFAULT_MAX_INPUT_BYTES,
     maxFileBytes: DEFAULT_MAX_FILE_BYTES,
     maxTokens: DEFAULT_MAX_TOKENS,
-    timeoutMs: DEFAULT_TIMEOUT_MS,
     maxDiffBytes: DEFAULT_MAX_DIFF_BYTES,
     port: 0,
     apply: false,
@@ -171,10 +167,6 @@ const parseArguments = (argv: string[]): ParsedArguments => {
         break;
       case "--max-diff-bytes":
         parsed.maxDiffBytes = positiveIntegerArgument(flag, value);
-        index += 1;
-        break;
-      case "--timeout-ms":
-        parsed.timeoutMs = positiveIntegerArgument(flag, value);
         index += 1;
         break;
       case "--manifest":

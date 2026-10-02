@@ -30,7 +30,7 @@ function excerpt(absPath, limit = 6000) {
 async function collectExcerpts(declared, brief, repo) {
   const excerpts = {};
   if (brief.surfaces?.cli?.ok) {
-    const help = await runCommand(brief.surfaces.cli.binary, ["--help"], { timeoutMs: 10000 });
+    const help = await runCommand(brief.surfaces.cli.binary, ["--help"]);
     excerpts[`${brief.product} --help`] = help.stdout;
   }
   const files = { ...(declared.docs ?? {}) };

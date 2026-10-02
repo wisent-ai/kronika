@@ -116,7 +116,6 @@ const main = async (): Promise<void> => {
     apiKey,
     ...(agentId ? { agentId } : {}),
     ...(authSecret ? { authSecret } : {}),
-    timeoutMs: args.timeoutMs,
   });
 
   if (args.command === "sync") {

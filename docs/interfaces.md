@@ -129,7 +129,6 @@ Exit status `1` means at least one document failed to reconcile.
 | `--max-diff-bytes <n>` | complete Git diff budget for `check`; default `200000` |
 | `--base <ref>` | required base commit for `check` |
 | `--head <ref>` | head commit for `check`; default `HEAD` |
-| `--timeout-ms <n>` | Brama request bound; default `120000` |
 | `--json` | machine-readable result |
 | `--apply` | atomically replace the requested output |
 
