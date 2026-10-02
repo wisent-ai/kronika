@@ -84,4 +84,25 @@ Onboarding needs no Brama route: it completes when kronika init durably
 adopts an existing documentation workspace. The gui command binds only
 127.0.0.1, prints its session URL, and never opens a browser.`;
 
-export { HELP };
+/// What `kronika <command> --help` prints: the command's usage lines and its
+/// paragraph from the command list, then the shared options, so a person asking
+/// about one command reads about that command first (cli.md rule 11). A word
+/// that names no command gets the whole help.
+const helpFor = (command: string): string => {
+  const lines = HELP.split("\n");
+  const usage = lines.filter((line) => line.startsWith(`  kronika ${command} `) || line === `  kronika ${command}`);
+  if (usage.length === 0) return HELP;
+  const commands = lines.indexOf("Commands:");
+  const options = lines.indexOf("Options:");
+  const description: string[] = [];
+  for (let index = commands + 1; index < options; index += 1) {
+    const line = lines[index];
+    if (line.startsWith(`  ${command} `)) description.push(line);
+    else if (description.length > 0 && line.startsWith("                        ")) description.push(line);
+    else if (description.length > 0) break;
+  }
+  const rest = lines.slice(options).join("\n");
+  return ["Usage:", ...usage, "", "Command:", ...description, "", rest].join("\n");
+};
+
+export { HELP, helpFor };

@@ -13,7 +13,7 @@ import type { CheckDocumentationOptions, WriteDocumentationOptions } from "./doc
 import { writeDocumentation } from "./docs/writer.js";
 import { syncDocumentation } from "./sync/sync.js";
 
-import { HELP } from "./cli/help.js";
+import { HELP, helpFor } from "./cli/help.js";
 import { printAnswer } from "./cli/answer.js";
 import { parseArguments } from "./cli/arguments.js";
 import type { ParsedArguments } from "./cli/arguments.js";
@@ -32,7 +32,9 @@ const main = async (): Promise<void> => {
     return;
   }
   if (args.command === "help") {
-    process.stdout.write(`${HELP}\n`);
+    // `kronika check --help` answers about check; `kronika --help` about all.
+    const first = process.argv[2];
+    process.stdout.write(`${first && !first.startsWith("-") ? helpFor(first) : HELP}\n`);
     return;
   }
 
