@@ -6,7 +6,9 @@
 //   drift     — documented command lines and flags exist in the live --help
 //   terms     — a term used on >=3 pages must be declared with a defining page
 //   structure — the plan validates against the closed schema
-//   coverage  — every brief.requiredKinds is present among page kinds
+//   coverage  — every brief.requiredKinds is present among page kinds, and
+//               every command the binary's --help advertises has a cli-reference
+//               page whose slug is `cli/<command>` or below it (cli.md rule 17)
 import { parseArgs } from "node:util";
 import { readFileSync, existsSync } from "node:fs";
 import path from "node:path";
@@ -253,10 +255,23 @@ function validateStructure(plan) {
 }
 
 function validateCoverage(plan, brief) {
-  const kinds = new Set((plan.pages ?? []).map((p) => p.kind));
-  return (brief?.requiredKinds ?? [])
+  const pages = plan.pages ?? [];
+  const kinds = new Set(pages.map((p) => p.kind));
+  const failures = (brief?.requiredKinds ?? [])
     .filter((k) => !kinds.has(k))
     .map((kind) => ({ kind, message: `required page kind "${kind}" is missing from the plan` }));
+  // The binary's own command list, read by detect from `--help`; a command
+  // with no page of its own is a published promise nobody can read about.
+  const commands = brief?.surfaces?.cli?.commands ?? [];
+  const slugs = pages.filter((p) => p.kind === "cli-reference").map((p) => p.slug);
+  for (const command of commands) {
+    if (command === "help") continue;
+    const documented = slugs.some((slug) => slug === `cli/${command}` || slug.startsWith(`cli/${command}/`));
+    if (!documented) {
+      failures.push({ command, message: `command "${command}" is in the binary's --help but no cli-reference page has slug "cli/${command}"` });
+    }
+  }
+  return failures;
 }
 
 // --- runner -------------------------------------------------------------------

@@ -19,13 +19,15 @@ the model is deterministic and verifiable.
 | Emission | [`pipeline/src/emit.mjs`](pipeline/src/emit.mjs) | `DocPage` data module for `DocumentationLayout` |
 | Publication | consumer site CI | deploy only on all-green |
 
-Five validators gate the plan, each one a defect the operator caught by hand on
-2026-08-19: **claims** (every `claim.evidence` occurs in its named source),
+Five validators gate the plan, each one a defect the operator caught by hand:
+**claims** (every `claim.evidence` occurs in its named source),
 **drift** (every documented command usage line and flag exists in the live
 binary's `--help`), **terms** (every recurring term has a defining page — no
 "fleet was never defined"), **structure** (closed page kinds; no Boundaries
 kind exists to choose), and **coverage** (every completion-gate kind that
-`brief.json` says applies is present).
+`brief.json` says applies is present, and every command the binary's `--help`
+advertises has a `cli-reference` page whose slug is `cli/<command>` or below
+it — a command with no page of its own is refused before anything emits).
 
 Commands: `npm run docs:detect` · `npm run docs:validate` · `npm run docs:emit`
 (or the `kronika-site` binary, which answers `--help` and exits 2 on an unknown option or a missing argument). Model access resolves through Brama only —
