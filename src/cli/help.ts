@@ -66,10 +66,12 @@ Options:
   -h, --help             Show this help
 
 Brama environment:
-  BRAMA_URL (or MODEL_ROUTER_URL)
-  BRAMA_API_KEY_REF               Skarbiec ITEM#FIELD holding the Brama bearer
-  WISENT_APP_AGENT_ID
+  BRAMA_URL (or MODEL_ROUTER_URL)   Brama, or without it any OpenAI-compatible provider
+  BRAMA_API_KEY_REF               Skarbiec ITEM#FIELD holding the bearer (Brama's or the provider's key)
+  WISENT_APP_AGENT_ID             optional; unset, requests go unsigned
   WISENT_APP_AGENT_AUTH_SECRET_REF  Skarbiec ITEM#FIELD holding the signing secret
+  KRONIKA_CREDENTIALS_FILE        without Skarbiec: owner-only JSON file of item -> field -> value
+                                  that answers every ITEM#FIELD reference
   KRONIKA_MODEL (optional)
 
 Without --apply, write prints the generated Markdown and does not change files.

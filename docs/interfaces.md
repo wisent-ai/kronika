@@ -171,6 +171,13 @@ optional but go together. A missing reference, one that is not `ITEM#FIELD`,
 a failed `skarbiec get` or an empty field is refused with the variable and the
 cause.
 
+Without Brama, `BRAMA_URL` names any OpenAI-compatible provider and
+`BRAMA_API_KEY_REF` its key; with `WISENT_APP_AGENT_ID` unset the requests go
+unsigned. Without Skarbiec, `KRONIKA_CREDENTIALS_FILE` names an owner-only
+(mode 600) JSON file of item → field → value, and every `_REF` is answered from
+it instead of `skarbiec get`; a file other users can read is refused, and a
+missing `skarbiec` executable is answered with the name of this variable.
+
 ## Library API
 
 ```ts
