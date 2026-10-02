@@ -3,11 +3,10 @@
 // Endpoint resolution: BRAMA_URL env, else the local Stado resolver's brama
 // adapter. No provider fallback: no Brama, no authoring — exit 69 with the
 // named infrastructure error instead of calling a provider directly.
-import { parseArgs } from "node:util";
 import { readFileSync, existsSync, writeFileSync } from "node:fs";
 import { validatePlan } from "../schema.mjs";
 import {
-  expandPath, readJson, printReport, die, runCommand, isMain,
+  expandPath, readJson, printReport, parseCommand, die, runCommand, isMain,
   resolveEndpoint, chatComplete, InfraDownError,
 } from "../lib.mjs";
 
@@ -81,19 +80,17 @@ export async function authorPlan({ brief, sources, repo, model = "default", endp
 }
 
 async function main() {
-  const { values } = parseArgs({
-    options: {
+  const { values } = parseCommand(
+    "node src/stages/author.mjs --brief brief.json --sources docs-sources.json [--repo path] [--out plan.json] [--model m] [--text]",
+    {
       brief: { type: "string" },
       sources: { type: "string" },
       out: { type: "string", default: "plan.json" },
       repo: { type: "string" },
       model: { type: "string", default: "default" },
     },
-  });
-  if (!values.brief || !values.sources) {
-    printReport({ error: "usage", detail: "node src/stages/author.mjs --brief brief.json --sources docs-sources.json [--repo path] [--out plan.json] [--model m]" });
-    process.exit(2);
-  }
+    { required: "brief sources".split(" ") },
+  );
   const brief = readJson(values.brief);
   const sources = readJson(values.sources);
   const repo = expandPath(values.repo ?? brief.repo ?? process.cwd());

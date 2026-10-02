@@ -4,6 +4,7 @@ import { readFileSync } from "node:fs";
 import { homedir } from "node:os";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
+import { parseArgs } from "node:util";
 
 // A gateway that answers with one of these is down, not refusing the request.
 const INFRA_DOWN_STATUSES = [502, 503, 504];
@@ -18,8 +19,53 @@ export function readJson(file) {
   return JSON.parse(readFileSync(file, "utf8"));
 }
 
+/**
+ * Parse one entry point's command line the same way everywhere: `--help`
+ * prints the usage and exits 0, `--text` is always accepted, and a command
+ * line parseArgs refuses (unknown option, missing value) or that lacks a
+ * `required` option exits 2 with the reason and the usage (cli.md rules 10,
+ * 11). Returns parseArgs's `{ values, positionals }`.
+ */
+export function parseCommand(usage, options, { positionals = 0, required = [] } = {}) {
+  let parsed;
+  try {
+    parsed = parseArgs({
+      allowPositionals: positionals > 0,
+      options: { ...options, text: { type: "boolean", default: false }, help: { type: "boolean", short: "h", default: false } },
+    });
+  } catch (error) {
+    printReport({ error: "usage", detail: `${error.message}; usage: ${usage}` });
+    process.exit(2);
+  }
+  if (parsed.values.help) {
+    process.stdout.write(`usage: ${usage}\n\nResults print as JSON; --text prints the same report as one path: value line per field.\n`);
+    process.exit(0);
+  }
+  const missing = required.filter((name) => !parsed.values[name]);
+  if (parsed.positionals.length !== positionals || missing.length) {
+    const reason = missing.length ? `missing --${missing.join(", --")}` : `expected ${positionals} positional argument(s)`;
+    printReport({ error: "usage", detail: `${reason}; usage: ${usage}` });
+    process.exit(2);
+  }
+  return parsed;
+}
+
+// JSON for machines; with --text one `path: value` line per field of the
+// same report (cli.md rule 13).
 export function printReport(report) {
-  process.stdout.write(JSON.stringify(report, null, 2) + "\n");
+  if (!process.argv.includes("--text")) {
+    process.stdout.write(JSON.stringify(report, null, 2) + "\n");
+    return;
+  }
+  const lines = [];
+  const walk = (node, at) => {
+    if (Array.isArray(node) && node.length) node.forEach((item, index) => walk(item, `${at}[${index}]`));
+    else if (node && typeof node === "object" && Object.keys(node).length) {
+      for (const [key, item] of Object.entries(node)) walk(item, at ? `${at}.${key}` : key);
+    } else lines.push(`${at}: ${node === null || typeof node === "object" ? "-" : node}`);
+  };
+  walk(report, "");
+  process.stdout.write(lines.join("\n") + "\n");
 }
 
 export function die(report, code = 1) {

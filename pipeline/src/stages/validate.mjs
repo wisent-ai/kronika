@@ -9,11 +9,10 @@
 //   coverage  — every brief.requiredKinds is present among page kinds, and
 //               every command the binary's --help advertises has a cli-reference
 //               page whose slug is `cli/<command>` or below it (cli.md rule 17)
-import { parseArgs } from "node:util";
 import { readFileSync, existsSync } from "node:fs";
 import path from "node:path";
 import { validatePlan } from "../schema.mjs";
-import { expandPath, readJson, printReport, runCommand, fetchText, isMain } from "../lib.mjs";
+import { expandPath, readJson, printReport, parseCommand, runCommand, fetchText, isMain } from "../lib.mjs";
 
 // A word used on this many pages is a term the plan must declare.
 const TERM_PAGE_THRESHOLD = 3;
@@ -288,13 +287,11 @@ export async function runValidators({ plan, brief, repo }) {
 }
 
 async function main() {
-  const { values } = parseArgs({
-    options: { plan: { type: "string" }, brief: { type: "string" }, repo: { type: "string" } },
-  });
-  if (!values.plan || !values.brief) {
-    printReport({ error: "usage", detail: "node src/stages/validate.mjs --plan plan.json --brief brief.json [--repo path]" });
-    process.exit(2);
-  }
+  const { values } = parseCommand(
+    "node src/stages/validate.mjs --plan plan.json --brief brief.json [--repo path] [--text]",
+    { plan: { type: "string" }, brief: { type: "string" }, repo: { type: "string" } },
+    { required: "plan brief".split(" ") },
+  );
   const plan = readJson(values.plan);
   const brief = readJson(values.brief);
   const repo = expandPath(values.repo ?? brief.repo ?? process.cwd());

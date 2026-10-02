@@ -1,49 +1,25 @@
 #!/usr/bin/env node
 // Pipeline orchestrator: detect -> (author | load plan) -> validate -> judge
-// -> emit. Stops at the first failing stage; prints one final JSON report.
-// Exit codes: 0 all green, 1 stage failed, 69 model infrastructure down.
-import { parseArgs } from "node:util";
+// -> emit. Stops at the first failing stage; prints one final report (JSON,
+// or --text). Exit codes: 0 all green, 1 stage failed, 2 usage error, 69
+// model infrastructure down.
 import { mkdirSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { detect } from "./stages/detect.mjs";
 import { runValidators } from "./stages/validate.mjs";
 import { authorPlan } from "./stages/author.mjs";
 import { emitPlan } from "./stages/emit.mjs";
-import { expandPath, readJson, printReport, isMain, resolveEndpoint, InfraDownError } from "./lib.mjs";
+import { expandPath, readJson, printReport, parseCommand, isMain, resolveEndpoint, InfraDownError } from "./lib.mjs";
 
-const USAGE = "kronika-site <productRepo> --sources <file> [--plan <file>] [--out <dir>] [--model <selector>]";
+const USAGE = "kronika-site <productRepo> --sources <file> [--plan <file>] [--out <dir>] [--model <selector>] [--text]";
 
 async function main() {
-  const argv = process.argv.slice(2);
-  if (argv.includes("--help") || argv.includes("-h")) {
-    process.stdout.write(`usage: ${USAGE}\n`);
-    return;
-  }
-  let parsed;
-  try {
-    parsed = parseArgs({
-      args: argv,
-      allowPositionals: true,
-      options: {
-        sources: { type: "string" },
-        plan: { type: "string" },
-        out: { type: "string" },
-
-        model: { type: "string", default: "default" },
-      },
-    });
-  } catch (error) {
-    printReport({ error: "usage", detail: `${error.message}; usage: ${USAGE}` });
-    process.exit(2);
-  }
-  const { values, positionals } = parsed;
-  if (positionals.length !== 1 || !values.sources) {
-    printReport({
-      error: "usage",
-      detail: USAGE,
-    });
-    process.exit(2);
-  }
+  const { values, positionals } = parseCommand(USAGE, {
+    sources: { type: "string" },
+    plan: { type: "string" },
+    out: { type: "string" },
+    model: { type: "string", default: "default" },
+  }, { positionals: 1, required: ["sources"] });
 
   const stages = [];
   const finish = (ok, code = ok ? 0 : 1) => {

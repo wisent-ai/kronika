@@ -30,7 +30,7 @@ advertises has a `cli-reference` page whose slug is `cli/<command>` or below
 it — a command with no page of its own is refused before anything emits).
 
 Commands: `npm run docs:detect` · `npm run docs:validate` · `npm run docs:emit`
-(or the `kronika-site` binary, which answers `--help` and exits 2 on an unknown option or a missing argument). Model access resolves through Brama only —
+(or the `kronika-site` binary). Every entry point — `kronika-site` and each stage under `pipeline/src` — answers `--help`, prints its report as JSON or with `--text` as one `path: value` line per field of the same report, and exits 2 on an unknown option or a missing argument; 1 means a stage failed and 69 that Brama is down. Model access resolves through Brama only —
 `BRAMA_URL`, then the local Stado resolver's brama adapter; there is no
 provider fallback. There is no quality judge and no scoring step: the
 writing standard is what the author reads, the mechanical validators are

@@ -2,8 +2,7 @@
 // Hand-rolled validator implementing schemas/plan.schema.json exactly:
 // closed page kinds, a claim required on every block, additionalProperties
 // false everywhere. Returns [] or a list of { path, message } errors.
-import { parseArgs } from "node:util";
-import { readJson, printReport, isMain } from "./lib.mjs";
+import { readJson, printReport, parseCommand, isMain } from "./lib.mjs";
 
 export const PAGE_KINDS = [
   "overview", "quick-start", "task-guide", "examples", "concept",
@@ -181,11 +180,7 @@ export function validatePlan(plan) {
 }
 
 function main() {
-  const { positionals } = parseArgs({ allowPositionals: true, options: {} });
-  if (positionals.length !== 1) {
-    printReport({ error: "usage", detail: "node src/schema.mjs <plan.json>" });
-    process.exit(2);
-  }
+  const { positionals } = parseCommand("node src/schema.mjs <plan.json> [--text]", {}, { positionals: 1 });
   const errors = validatePlan(readJson(positionals[0]));
   printReport({ ok: errors.length === 0, errors });
   process.exit(errors.length === 0 ? 0 : 1);

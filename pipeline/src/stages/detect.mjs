@@ -11,9 +11,8 @@
 //   configuration doc exists     -> config-reference
 //   CHANGELOG exists             -> changelog; + migration iff breaking entries
 //   declared limits/quotas exist -> limits
-import { parseArgs } from "node:util";
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
-import { expandPath, readJson, printReport, runCommand, isMain } from "../lib.mjs";
+import { expandPath, readJson, printReport, parseCommand, runCommand, isMain } from "../lib.mjs";
 
 function parseCommandList(helpText) {
   // clap layout: a "Commands:" header, then "  <name>  <description>" lines.
@@ -136,14 +135,11 @@ export async function detect(productRepo, sourcesFile) {
 }
 
 async function main() {
-  const { values, positionals } = parseArgs({
-    allowPositionals: true,
-    options: { sources: { type: "string" }, out: { type: "string" } },
-  });
-  if (positionals.length !== 1 || !values.sources) {
-    printReport({ error: "usage", detail: "node src/stages/detect.mjs <productRepo> --sources <docs-sources.json> [--out brief.json]" });
-    process.exit(2);
-  }
+  const { values, positionals } = parseCommand(
+    "node src/stages/detect.mjs <productRepo> --sources <docs-sources.json> [--out brief.json] [--text]",
+    { sources: { type: "string" }, out: { type: "string" } },
+    { positionals: 1, required: ["sources"] },
+  );
   const brief = await detect(positionals[0], values.sources);
   if (values.out) writeFileSync(values.out, JSON.stringify(brief, null, 2) + "\n");
   printReport(brief);

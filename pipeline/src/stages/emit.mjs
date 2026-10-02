@@ -3,10 +3,9 @@
 // DocumentationLayout (@wisent-ai/components >= 0.4.0) plus the nav
 // structure. A pure function of the plan — no model, no probing. Claims are
 // build-time verification metadata and are not rendered.
-import { parseArgs } from "node:util";
 import { mkdirSync, writeFileSync } from "node:fs";
 import path from "node:path";
-import { expandPath, readJson, printReport, isMain } from "../lib.mjs";
+import { expandPath, readJson, printReport, parseCommand, isMain } from "../lib.mjs";
 
 function renderSection(section) {
   const out = { title: section.title };
@@ -75,13 +74,11 @@ export function emitPlan(plan) {
 }
 
 async function main() {
-  const { values } = parseArgs({
-    options: { plan: { type: "string" }, out: { type: "string" } },
-  });
-  if (!values.plan || !values.out) {
-    printReport({ error: "usage", detail: "node src/stages/emit.mjs --plan plan.json --out <dir>" });
-    process.exit(2);
-  }
+  const { values } = parseCommand(
+    "node src/stages/emit.mjs --plan plan.json --out <dir> [--text]",
+    { plan: { type: "string" }, out: { type: "string" } },
+    { required: "plan out".split(" ") },
+  );
   const plan = readJson(values.plan);
   const outDir = expandPath(values.out);
   const { docPages, docsNav, module } = emitPlan(plan);
