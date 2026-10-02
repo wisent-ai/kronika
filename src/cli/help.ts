@@ -62,7 +62,8 @@ Options:
   --skip                 Onboarding: dismiss the journey
   --reset                Onboarding: replay the journey from its first screen
   --status               Onboarding: report an existing attempt without starting one
-  --json                 Emit a machine-readable result
+  --json                 Print the result as a JSON document for a machine; without it every
+                         command prints the same result as text for a person
   -h, --help             Show this help
 
 Brama environment:

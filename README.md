@@ -134,7 +134,8 @@ Kronika serves:
 - **Actor:** a maintainer or reviewer.
 - **Initial state:** a local repository and optional explicit source paths.
 - **Outcome:** `kronika sources` prints every selected file, total bytes, and
-  skipped file with its reason.
+  skipped file with its reason — as `path: value` lines for a person, or with
+  `--json` as one JSON document, like `kronika init` and every other command.
 - **Boundary:** no Brama call occurs and no repository file changes.
 
 ### Gate a code change against documentation

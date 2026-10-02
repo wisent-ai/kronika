@@ -14,6 +14,7 @@ import { writeDocumentation } from "./docs/writer.js";
 import { syncDocumentation } from "./sync/sync.js";
 
 import { HELP } from "./cli/help.js";
+import { printAnswer } from "./cli/answer.js";
 import { parseArguments } from "./cli/arguments.js";
 import type { ParsedArguments } from "./cli/arguments.js";
 import { readCredential } from "./cli/skarbiec.js";
@@ -59,7 +60,7 @@ const main = async (): Promise<void> => {
       ...(args.instruction ? { instruction: args.instruction } : {}),
       replace: args.replace,
     });
-    process.stdout.write(`${JSON.stringify(result, null, 2)}\n`);
+    printAnswer(result, args.json);
     if (result.status === "imported" || result.status === "unchanged") {
       await recordWorkspaceInitialized({
         client: "cli",
@@ -82,13 +83,13 @@ const main = async (): Promise<void> => {
 
   if (args.command === "sources") {
     const collection = collectSources(sourceOptions);
-    process.stdout.write(`${JSON.stringify({
+    printAnswer({
       repo: args.repo,
       output: args.output,
       totalBytes: collection.totalBytes,
       sources: collection.documents.map(({ path, bytes }) => ({ path, bytes })),
       skipped: collection.skipped,
-    }, null, 2)}\n`);
+    }, args.json);
 
     return;
   }
