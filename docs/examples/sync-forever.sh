@@ -2,7 +2,7 @@
 # sync-forever.sh — one schedulable reconciliation tick: audit drifted
 # documents, rewrite only audited defects, commit and push the result.
 # Point cron/launchd/CI at this script and documentation follows the repo.
-# Needs: BRAMA_URL, BRAMA_API_KEY_REF (a Skarbiec ITEM#FIELD), skarbiec on PATH; a kronika.sync.json at the repo root.
+# Needs: BRAMA_URL, BRAMA_API_KEY_ROLE (ROLE#FIELD of the Brama bearer), stado on PATH; a kronika.sync.json at the repo root.
 # Run: sh sync-forever.sh [/path/to/repo]
 set -eu
 REPO="${1:-.}"

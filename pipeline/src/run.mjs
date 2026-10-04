@@ -9,7 +9,7 @@ import { detect } from "./stages/detect.mjs";
 import { runValidators } from "./stages/validate.mjs";
 import { authorPlan } from "./stages/author.mjs";
 import { emitPlan } from "./stages/emit.mjs";
-import { expandPath, readJson, printReport, parseCommand, isMain, resolveEndpoint, InfraDownError } from "./lib.mjs";
+import { expandPath, readJson, printReport, parseCommand, isMain, resolveEndpoint, InfraDownError, EndpointNotConfiguredError } from "./lib.mjs";
 
 const USAGE = "kronika-site <productRepo> --sources <file> [--plan <file>] [--out <dir>] [--model <selector>] [--text]";
 
@@ -38,7 +38,14 @@ async function main() {
     plan = readJson(values.plan);
     stages.push({ stage: "plan", ok: true, mode: "loaded", path: expandPath(values.plan) });
   } else {
-    const endpoint = resolveEndpoint();
+    let endpoint;
+    try {
+      endpoint = resolveEndpoint();
+    } catch (e) {
+      if (!(e instanceof EndpointNotConfiguredError)) throw e;
+      stages.push({ stage: "author", ok: false, error: "not_configured", detail: e.message });
+      finish(false);
+    }
     const sources = readJson(expandPath(values.sources));
     try {
       const authored = await authorPlan({ brief, sources, repo: brief.repo, model: values.model, endpoint });

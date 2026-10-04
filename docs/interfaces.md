@@ -153,29 +153,32 @@ local file under `${XDG_STATE_HOME:-~/.local/state}/kronika/onboarding.json`;
 ### Brama configuration
 
 ```bash
-export BRAMA_URL=https://brama.wisent.com
-export BRAMA_API_KEY_REF='kronika-brama#bearer'
+export BRAMA_URL=<the Brama address this machine dials>
+export BRAMA_API_KEY_ROLE='<bearer role>#bearer'
 # Optional when the Brama client identity is also bound to an agent:
-export WISENT_APP_AGENT_ID=kronika
-export WISENT_APP_AGENT_AUTH_SECRET_REF='kronika-brama#signing_secret'
+export WISENT_APP_AGENT_ID=<agent id>
+export WISENT_APP_AGENT_AUTH_SECRET_ROLE='<signing role>#signing_secret'
 export KRONIKA_MODEL=any
 ```
 
-`MODEL_ROUTER_URL` is accepted for `BRAMA_URL`. The two `_REF` variables are
-Skarbiec references `ITEM#FIELD`, never secrets: the CLI reads each value with
-`skarbiec get ITEM --field FIELD` (`SKARBIEC_BIN` names another executable), so
-no bearer or signing secret sits in the environment or argv. The bearer
-reference is always required; the agent ID and signing-secret reference are
-optional but go together. A missing reference, one that is not `ITEM#FIELD`,
-a failed `skarbiec get` or an empty field is refused with the variable and the
-cause.
+`MODEL_ROUTER_URL` is accepted for `BRAMA_URL`. No Brama address is built in:
+the site pipeline falls back to the address Stado's service directory publishes
+for this machine in `~/.stado/forwards/brama.local`, and the CLI requires one of
+the two variables. The two `_ROLE` variables are role references `ROLE#FIELD`,
+never secrets and never item names: the CLI reads each value with
+`stado credentials get --role ROLE --field FIELD` (`STADO_BIN` names another
+executable), so no bearer or signing secret sits in the environment or argv, and
+replacing the vault item changes nothing here. The bearer reference is always
+required; the agent ID and signing-secret reference are optional but go
+together. A missing reference, one that is not `ROLE#FIELD`, a failed read or
+an empty field is refused with the variable and the cause.
 
 Without Brama, `BRAMA_URL` names any OpenAI-compatible provider and
-`BRAMA_API_KEY_REF` its key; with `WISENT_APP_AGENT_ID` unset the requests go
-unsigned. Without Skarbiec, `KRONIKA_CREDENTIALS_FILE` names an owner-only
-(mode 600) JSON file of item → field → value, and every `_REF` is answered from
-it instead of `skarbiec get`; a file other users can read is refused, and a
-missing `skarbiec` executable is answered with the name of this variable.
+`BRAMA_API_KEY_ROLE` its key; with `WISENT_APP_AGENT_ID` unset the requests go
+unsigned. Without Stado, `KRONIKA_CREDENTIALS_FILE` names an owner-only
+(mode 600) JSON file of role → field → value, and every `_ROLE` is answered from
+it instead of `stado credentials get`; a file other users can read is refused,
+and a missing `stado` executable is answered with the name of this variable.
 
 ## Library API
 

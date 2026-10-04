@@ -101,15 +101,15 @@ const main = async (): Promise<void> => {
   }
 
   const bramaUrl = process.env.BRAMA_URL || process.env.MODEL_ROUTER_URL;
-  // Only Skarbiec references travel in the environment; the secrets
-  // themselves are read from Skarbiec here (cli.md rule 15).
-  const apiKeyRef = process.env.BRAMA_API_KEY_REF;
+  // Only role references travel in the environment; the secrets themselves
+  // are read through Stado by the role their item plays (cli.md rule 15).
+  const apiKeyRole = process.env.BRAMA_API_KEY_ROLE;
   const agentId = process.env.WISENT_APP_AGENT_ID;
-  const authSecretRef = process.env.WISENT_APP_AGENT_AUTH_SECRET_REF;
+  const authSecretRole = process.env.WISENT_APP_AGENT_AUTH_SECRET_ROLE;
   if (!bramaUrl) throw new Error("BRAMA_URL or MODEL_ROUTER_URL is required");
-  if (!apiKeyRef) throw new Error("BRAMA_API_KEY_REF is required: the Skarbiec ITEM#FIELD holding the Brama bearer");
-  const apiKey = readCredential(apiKeyRef, "BRAMA_API_KEY_REF");
-  const authSecret = authSecretRef ? readCredential(authSecretRef, "WISENT_APP_AGENT_AUTH_SECRET_REF") : undefined;
+  if (!apiKeyRole) throw new Error("BRAMA_API_KEY_ROLE is required: ROLE#FIELD naming the role the item holding the Brama bearer plays, and its field");
+  const apiKey = readCredential(apiKeyRole, "BRAMA_API_KEY_ROLE");
+  const authSecret = authSecretRole ? readCredential(authSecretRole, "WISENT_APP_AGENT_AUTH_SECRET_ROLE") : undefined;
 
   const client = new BramaClient({
     url: bramaUrl,

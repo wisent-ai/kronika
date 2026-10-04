@@ -1,13 +1,14 @@
 #!/usr/bin/env node
 // Plan authoring: the model writes a typed content plan — never markup.
-// Endpoint resolution: BRAMA_URL env, else the local Stado resolver's brama
-// adapter. No provider fallback: no Brama, no authoring — exit 69 with the
-// named infrastructure error instead of calling a provider directly.
+// Endpoint resolution: BRAMA_URL env, else the address Stado's service
+// directory published for this machine (~/.stado/forwards/brama.local). No
+// provider fallback: no Brama, no authoring — a named error instead of
+// calling a provider directly.
 import { readFileSync, existsSync, writeFileSync } from "node:fs";
 import { validatePlan } from "../schema.mjs";
 import {
   expandPath, readJson, printReport, parseCommand, die, runCommand, isMain,
-  resolveEndpoint, chatComplete, InfraDownError,
+  resolveEndpoint, chatComplete, InfraDownError, EndpointNotConfiguredError,
 } from "../lib.mjs";
 
 const SCHEMA_PATH = new URL("../schemas/plan.schema.json", import.meta.url);
@@ -94,7 +95,13 @@ async function main() {
   const brief = readJson(values.brief);
   const sources = readJson(values.sources);
   const repo = expandPath(values.repo ?? brief.repo ?? process.cwd());
-  const endpoint = resolveEndpoint();
+  let endpoint;
+  try {
+    endpoint = resolveEndpoint();
+  } catch (e) {
+    if (!(e instanceof EndpointNotConfiguredError)) throw e;
+    die({ error: "not_configured", detail: e.message }, 1);
+  }
   try {
     const { plan, schemaErrors } = await authorPlan({ brief, sources, repo, model: values.model, endpoint });
     if (schemaErrors.length > 0) {

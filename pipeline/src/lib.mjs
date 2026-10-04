@@ -112,12 +112,39 @@ export async function fetchText(url) {
 
 // --- Model endpoint (Brama) ------------------------------------------------
 
-export const LOCAL_BRAMA_ADAPTER = "http://127.0.0.1:17601";
+/** Where `stado service directory publish` writes the address this machine dials for Brama. */
+export const BRAMA_FORWARD_MARKER = path.join(homedir(), ".stado", "forwards", "brama.local");
 
-/** BRAMA_URL env, else the local Stado resolver's brama adapter. No provider fallback. */
-export function resolveEndpoint(env = process.env) {
+export class EndpointNotConfiguredError extends Error {
+  constructor(detail) {
+    super(
+      `no Brama address is configured on this machine: ${detail}; set BRAMA_URL, or run ` +
+        "`stado service directory publish` so Stado writes the address this machine dials " +
+        `to ${BRAMA_FORWARD_MARKER}`,
+    );
+    this.name = "EndpointNotConfiguredError";
+  }
+}
+
+/**
+ * BRAMA_URL when the operator set it, else the address Stado's service
+ * directory published for this machine (`~/.stado/forwards/brama.local`).
+ * Brama's address is different on every machine, so none is written here;
+ * with neither, the refusal names both ways to provide one. No provider
+ * fallback.
+ */
+export function resolveEndpoint(env = process.env, marker = BRAMA_FORWARD_MARKER) {
   if (env.BRAMA_URL) return { url: env.BRAMA_URL.replace(/\/+$/, ""), via: "BRAMA_URL" };
-  return { url: LOCAL_BRAMA_ADAPTER, via: "local resolver brama adapter (BRAMA_URL unset)" };
+  let published;
+  try {
+    published = readFileSync(marker, "utf8").trim();
+  } catch (e) {
+    throw new EndpointNotConfiguredError(`BRAMA_URL is unset and ${marker} cannot be read (${e.code ?? e.message})`);
+  }
+  if (!/^https?:\/\//.test(published)) {
+    throw new EndpointNotConfiguredError(`BRAMA_URL is unset and ${marker} holds no http(s) address`);
+  }
+  return { url: published.replace(/\/+$/, ""), via: marker };
 }
 
 export class InfraDownError extends Error {

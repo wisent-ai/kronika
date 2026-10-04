@@ -1,7 +1,7 @@
 #!/bin/sh
 # gate-a-change.sh — CI documentation gate: audit exactly this branch's
 # changes against current documentation; exit 1 blocks the merge.
-# Needs: BRAMA_URL and BRAMA_API_KEY_REF (a Skarbiec ITEM#FIELD) in the environment, and skarbiec on PATH.
+# Needs: BRAMA_URL and BRAMA_API_KEY_ROLE (ROLE#FIELD of the Brama bearer) in the environment, and stado on PATH.
 # Run: sh gate-a-change.sh [base-ref]
 set -eu
 BASE="${1:-origin/main}"

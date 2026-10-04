@@ -66,11 +66,12 @@ Options:
 
 Brama environment:
   BRAMA_URL (or MODEL_ROUTER_URL)   Brama, or without it any OpenAI-compatible provider
-  BRAMA_API_KEY_REF               Skarbiec ITEM#FIELD holding the bearer (Brama's or the provider's key)
+  BRAMA_API_KEY_ROLE              ROLE#FIELD: the role the item holding the bearer plays, and its field
   WISENT_APP_AGENT_ID             optional; unset, requests go unsigned
-  WISENT_APP_AGENT_AUTH_SECRET_REF  Skarbiec ITEM#FIELD holding the signing secret
-  KRONIKA_CREDENTIALS_FILE        without Skarbiec: owner-only JSON file of item -> field -> value
-                                  that answers every ITEM#FIELD reference
+  WISENT_APP_AGENT_AUTH_SECRET_ROLE  ROLE#FIELD of the signing secret
+  STADO_BIN                       the stado executable the roles are read through (default: stado on PATH)
+  KRONIKA_CREDENTIALS_FILE        without Stado: owner-only JSON file of role -> field -> value
+                                  that answers every ROLE#FIELD reference
   KRONIKA_MODEL (optional)
 
 Without --apply, write prints the generated Markdown and does not change files.
