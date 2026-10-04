@@ -68,7 +68,7 @@ async function main() {
   }
 
   // 3. validate
-  const validation = await runValidators({ plan, brief, repo: brief.repo });
+  const validation = await runValidators({ plan, brief, repo: brief.repo, model: values.model });
   stages.push({ stage: "validate", ok: validation.ok, report: validation });
   if (!validation.ok) finish(false);
 

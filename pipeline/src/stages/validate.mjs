@@ -1,10 +1,12 @@
 #!/usr/bin/env node
-// The five mechanical validators. Each report entry is
+// The five validators. Each report entry is
 // { validator, pass, failures: [...] }; the process exits nonzero unless all
 // five pass. Every validator is a defect the operator caught by hand:
 //   claims    — every claim.evidence occurs in its named source
 //   drift     — documented command lines and flags exist in the live --help
-//   terms     — a term used on >=3 pages must be declared with a defining page
+//   terms     — a word used on >=3 pages that Brama judges a product concept
+//               must be declared with a defining page (BRAMA_URL or the
+//               service directory marker; unreachable fails the validator)
 //   structure — the plan validates against the closed schema
 //   coverage  — every brief.requiredKinds is present among page kinds, and
 //               every command the binary's --help advertises has a cli-reference
@@ -12,7 +14,7 @@
 import { readFileSync, existsSync } from "node:fs";
 import path from "node:path";
 import { validatePlan } from "../schema.mjs";
-import { expandPath, readJson, printReport, parseCommand, runCommand, fetchText, isMain } from "../lib.mjs";
+import { expandPath, readJson, printReport, parseCommand, runCommand, fetchText, isMain, resolveEndpoint, chatComplete } from "../lib.mjs";
 
 // A word used on this many pages is a term the plan must declare.
 const TERM_PAGE_THRESHOLD = 3;
@@ -170,26 +172,32 @@ async function validateDrift(plan, brief, repo) {
 
 // --- terms ------------------------------------------------------------------
 
-// Generic English / documentation words that are not product concepts.
-const STOPWORDS = new Set(`
-about above after again against almost already also always another answer
-answers anything appear appears back because been before begin being below
-between both cannot case cases change changes come comes could does done down
-each either else enough even every everything exactly example examples exit
-exits exist exists first found from full gets give gives goes have haves having
-here holds inside instead into itself just keep keeps kind kinds last later
-least left less like line lines list lists longer look looks made make makes
-many may mean means might more most much must name names need needs never next
-none nothing often once ones only onto other others over own page pages part
-parts path paths per place plus print prints rather read reads real reason
-right runs said same says section sections see seen sets shall shape shell
-should show shows side simple since small some something state states still
-such take takes tell tells text than that thats their them then there these
-they thing things this those three through time times today together tool
-tools turn turns under until upon used uses using value values very want wants
-ways well were what when where whether which while whole whose will with
-within without word words work works would write writes your yours
-`.trim().split(/\s+/));
+/**
+ * Which of `words` name a concept of this product that a reader has to learn,
+ * as opposed to ordinary English, asked of a model through Brama. A built-in
+ * stopword list decided this before, so every generic word it lacked was
+ * demanded as a term and every product word it happened to hold was waved
+ * through. Throws when Brama cannot answer or answers outside the words asked.
+ */
+async function productConcepts(words, product, { endpoint, model }) {
+  const messages = [
+    {
+      role: "system",
+      content:
+        "You review the documentation of one software product. For each word given, decide whether it names a concept of " +
+        "that product a reader has to learn (a component, command, resource or idea specific to it) or is ordinary " +
+        "English vocabulary. Answer with JSON only: {\"concepts\": [the words that are product concepts]}.",
+    },
+    { role: "user", content: JSON.stringify({ product, words }) },
+  ];
+  const content = await chatComplete({ endpoint: endpoint.url, messages, model });
+  const text = content.trim().replace(/^```(?:json)?\s*/i, "").replace(/```\s*$/, "");
+  const answer = JSON.parse(text.slice(text.indexOf("{"), text.lastIndexOf("}") + 1));
+  if (!Array.isArray(answer?.concepts) || answer.concepts.some((w) => !words.includes(w))) {
+    throw new Error(`brama's term judgement is not a list drawn from the words asked: ${text.slice(0, 400)}`);
+  }
+  return new Set(answer.concepts);
+}
 
 function pageProse(page) {
   const parts = [page.title ?? "", page.description ?? ""];
@@ -209,7 +217,7 @@ function pageProse(page) {
   return parts.join("\n").toLowerCase();
 }
 
-function validateTerms(plan, brief) {
+async function validateTerms(plan, brief, judge) {
   const failures = [];
   const product = (brief?.product ?? plan.product ?? "").toLowerCase();
   const slugs = new Set((plan.pages ?? []).map((p) => p.slug));
@@ -225,18 +233,28 @@ function validateTerms(plan, brief) {
   const covered = (w) =>
     declaredWords.has(w) || declaredWords.has(`${w}s`) || (w.endsWith("s") && declaredWords.has(w.slice(0, -1)));
 
-  // Any word recurring on >=3 pages must be a declared term.
+  // A word recurring on >=3 pages that names a product concept must be a
+  // declared term; whether it names one is the model's judgement.
   const usage = new Map();
   for (const page of plan.pages ?? []) {
     const words = new Set(pageProse(page).match(/[a-z][a-z-]{3,}/g) ?? []);
     for (const w of words) {
-      if (w === product || STOPWORDS.has(w)) continue;
+      if (w === product) continue;
       if (!usage.has(w)) usage.set(w, []);
       usage.get(w).push(page.slug);
     }
   }
-  for (const [word, pages] of usage) {
-    if (pages.length >= TERM_PAGE_THRESHOLD && !covered(word)) {
+  const recurring = [...usage].filter(([word, pages]) => pages.length >= TERM_PAGE_THRESHOLD && !covered(word));
+  if (recurring.length === 0) return failures;
+  let concepts;
+  try {
+    concepts = await productConcepts(recurring.map(([word]) => word), product, judge());
+  } catch (e) {
+    failures.push({ message: `recurring words could not be judged: ${e.message}` });
+    return failures;
+  }
+  for (const [word, pages] of recurring) {
+    if (concepts.has(word)) {
       failures.push({
         term: word,
         pages,
@@ -275,11 +293,17 @@ function validateCoverage(plan, brief) {
 
 // --- runner -------------------------------------------------------------------
 
-export async function runValidators({ plan, brief, repo }) {
+/**
+ * `endpoint` and `model` are the Brama address and alias the terms judgement
+ * asks; without an endpoint it is resolved (BRAMA_URL or the service
+ * directory marker) only when there is something to judge.
+ */
+export async function runValidators({ plan, brief, repo, endpoint, model = "default" }) {
+  const judge = () => ({ endpoint: endpoint ?? resolveEndpoint(), model });
   const validators = [
     { validator: "claims", failures: await validateClaims(plan, brief, repo) },
     { validator: "drift", failures: await validateDrift(plan, brief, repo) },
-    { validator: "terms", failures: validateTerms(plan, brief) },
+    { validator: "terms", failures: await validateTerms(plan, brief, judge) },
     { validator: "structure", failures: validateStructure(plan) },
     { validator: "coverage", failures: validateCoverage(plan, brief) },
   ].map((v) => ({ validator: v.validator, pass: v.failures.length === 0, failures: v.failures }));
