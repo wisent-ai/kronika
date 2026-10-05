@@ -38,10 +38,10 @@ Options:
   --head <ref>           Head Git commit for check (default: HEAD)
   --instruction <text>   Additional documentation goal
   --model <selector>     Brama model selector (default: KRONIKA_MODEL or any)
-  --max-input-bytes <n>  Total source budget; required by sources, check and write
-  --max-file-bytes <n>   Per-file source limit; required by sources, check and write
+  --max-input-bytes <n>  Total source budget (default: none; every selected source is read)
+  --max-file-bytes <n>   Per-file source limit (default: none)
   --max-tokens <n>       Completion token budget (default: none sent; the Brama alias's own limit)
-  --max-diff-bytes <n>   Git diff budget; required by check
+  --max-diff-bytes <n>   Git diff budget for check (default: none; the whole diff is audited)
   --apply                Atomically replace the target document
   --manifest <path>      Sync manifest inside the repository (default: kronika.sync.json)
   --state <path>         Sync state file inside the repository (default: kronika.sync-state.json)

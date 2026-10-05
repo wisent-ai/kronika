@@ -47,8 +47,7 @@ kronika sources \
   --repo /path/to/project \
   --source README.md \
   --source src \
-  --source docs \
-  --max-input-bytes N --max-file-bytes N
+  --source docs
 ```
 
 Automatic discovery uses
@@ -63,12 +62,12 @@ kronika check \
   --repo /path/to/project \
   --base origin/main \
   --head HEAD \
-  --max-input-bytes N --max-file-bytes N --max-diff-bytes N \
   --json
 ```
 
 The base and head are resolved to commit SHAs before the model call. Kronika
-refuses an unreadable or oversized diff rather than auditing truncated evidence.
+refuses an unreadable diff, or one larger than a stated `--max-diff-bytes`,
+rather than auditing truncated evidence.
 The JSON result contains the resolved SHAs, changed paths, summary, warnings,
 and blocker findings. Exit status `1` means at least one blocker.
 
@@ -80,7 +79,6 @@ kronika write \
   --output docs/architecture.md \
   --source README.md \
   --source src \
-  --max-input-bytes N --max-file-bytes N \
   --instruction 'Document components, request flow, invariants, and failure modes.'
 ```
 
@@ -123,21 +121,21 @@ reconciliation, so a scheduler (cron, launchd, `stado schedule`) can run the
 same command forever and documentation follows the repository by itself.
 Exit status `1` means at least one document failed to reconcile.
 
-Kronika assumes no budget. A command that reads sources is refused by name
-until `--max-input-bytes` and `--max-file-bytes` are given (`check` also needs
-`--max-diff-bytes`). In sync each document may state `maxInputBytes`,
+Kronika assumes no budget and requires none. Every selected source is read
+whole and the whole diff is audited unless a limit is stated: `--max-input-bytes`
+and `--max-file-bytes` skip sources beyond a stated size (each skip is reported
+with its reason), and `--max-diff-bytes` refuses a larger diff rather than
+auditing a truncated one. In sync each document may state `maxInputBytes`,
 `maxFileBytes`, `maxDiffBytes`, `maxTokens` and `model` in the manifest; the
-matching flag covers documents that do not. A drifted document with an
-unstated byte budget fails with the missing field named, and the other
-documents still reconcile.
+matching flag covers documents that do not.
 
 | Option | Purpose |
 |---|---|
 | `--model <selector>` | override the Brama selector |
-| `--max-input-bytes <n>` | total source payload; required by `sources`, `check` and `write` |
-| `--max-file-bytes <n>` | one source file; required by `sources`, `check` and `write` |
+| `--max-input-bytes <n>` | total source payload; unset, every selected source is read |
+| `--max-file-bytes <n>` | one source file; unset, no file is skipped for its size |
 | `--max-tokens <n>` | completion budget; unset, no budget is sent and the Brama alias's own output limit applies |
-| `--max-diff-bytes <n>` | complete Git diff budget; required by `check` |
+| `--max-diff-bytes <n>` | Git diff limit for `check`; unset, the whole diff is audited |
 | `--base <ref>` | required base commit for `check` |
 | `--head <ref>` | head commit for `check`; default `HEAD` |
 | `--json` | machine-readable result |
@@ -217,9 +215,6 @@ const result = await writeDocumentation({
   sources: ["src", "package.json"],
   instruction: "Write the canonical installation and API guide.",
   model: "any",
-  maxInputBytes: 200_000,
-  maxFileBytes: 64_000,
-  maxTokens: 8_000,
   apply: false,
 }, client);
 

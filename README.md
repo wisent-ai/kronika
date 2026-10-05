@@ -213,7 +213,7 @@ cd kronika
 npm install
 npm run build
 node dist/src/cli.js init --repo .
-node dist/src/cli.js sources --repo . --source README.md --source src --max-input-bytes N --max-file-bytes N
+node dist/src/cli.js sources --repo . --source README.md --source src
 ```
 
 Expected result: `init` reports every imported document and writes only
@@ -226,7 +226,7 @@ For local command installation:
 
 ```bash
 npm link
-kronika sources --repo /path/to/project --max-input-bytes N --max-file-bytes N
+kronika sources --repo /path/to/project
 ```
 
 To use the graphical importer instead, keep this foreground command running and

@@ -52,7 +52,8 @@ export type CheckDocumentationOptions = SourceOptions & {
   model: string;
   /** Completion budget; absent, the Brama alias's own limit applies. */
   maxTokens?: number;
-  maxDiffBytes: number;
+  /** Git diff bytes; absent, the whole diff is audited. */
+  maxDiffBytes?: number;
   /** Git pathspecs the audited diff is restricted to; empty audits the whole
    * range. Sync passes the document's declared sources here so one drifted
    * document is never blocked by the size of unrelated changes. */
@@ -76,8 +77,10 @@ export type SourceOptions = {
   repo: string;
   sources?: string[];
   output: string;
-  maxInputBytes: number;
-  maxFileBytes: number;
+  /** Total source payload; absent, every selected source is read. */
+  maxInputBytes?: number;
+  /** One source file; absent, no file is skipped for its size. */
+  maxFileBytes?: number;
 };
 
 export type WriteDocumentationOptions = SourceOptions & {

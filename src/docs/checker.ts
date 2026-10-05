@@ -65,7 +65,7 @@ const repositoryChange = (
   repo: string,
   base: string,
   head: string,
-  maxDiffBytes: number,
+  maxDiffBytes: number | undefined,
   diffPaths: string[],
 ): RepositoryChange => {
   const baseSha = resolveCommit(repo, base);
@@ -74,12 +74,12 @@ const repositoryChange = (
   let patch: string;
   try {
     names = git(repo, ["diff", "--name-status", "--find-renames", `${baseSha}...${headSha}`, "--", ...diffPaths]);
-    patch = git(repo, ["diff", "--unified=40", "--no-ext-diff", "--no-color", "--find-renames", `${baseSha}...${headSha}`, "--", ...diffPaths]);
+    patch = git(repo, ["diff", "--no-ext-diff", "--no-color", "--find-renames", `${baseSha}...${headSha}`, "--", ...diffPaths]);
   } catch {
     throw new Error(`Git diff cannot be read for ${baseSha}...${headSha}`);
   }
   const diffBytes = Buffer.byteLength(patch);
-  if (diffBytes > maxDiffBytes) {
+  if (maxDiffBytes !== undefined && diffBytes > maxDiffBytes) {
     throw new Error(`Git diff is ${diffBytes} bytes, above --max-diff-bytes ${maxDiffBytes}; narrow or split the change rather than auditing a truncated diff`);
   }
   const changedPaths = names
@@ -176,7 +176,9 @@ export const checkDocumentation = async (
   options: CheckDocumentationOptions,
   client: CompletionClient,
 ): Promise<CheckDocumentationResult> => {
-  if (!Number.isSafeInteger(options.maxDiffBytes) || options.maxDiffBytes <= 0) throw new Error("Diff byte limit must be a positive integer");
+  if (options.maxDiffBytes !== undefined && (!Number.isSafeInteger(options.maxDiffBytes) || options.maxDiffBytes <= 0)) {
+    throw new Error("Diff byte limit must be a positive integer");
+  }
   const repo = resolve(options.repo);
   const collection = collectSources(options);
   const change = repositoryChange(repo, options.base, options.head, options.maxDiffBytes, options.diffPaths ?? []);

@@ -175,7 +175,7 @@ const automaticSource = (path: string): boolean => {
 export const collectSources = (options: SourceOptions): SourceCollection => {
   const repo = resolve(options.repo);
   if (!statSync(repo).isDirectory()) throw new Error(`Repository is not a directory: ${repo}`);
-  if (options.maxInputBytes <= 0 || options.maxFileBytes <= 0) {
+  if ([options.maxInputBytes, options.maxFileBytes].some((limit) => limit !== undefined && limit <= 0)) {
     throw new Error("Source byte limits must be positive");
   }
 
@@ -190,7 +190,7 @@ export const collectSources = (options: SourceOptions): SourceCollection => {
 
   // The document being written goes first; every other source keeps the order the operator
   // listed it in (--source, or the manifest's sources), or Git's order when discovered. Which
-  // files fit the stated budget is therefore the operator's choice, not a built-in ranking.
+  // files fit a stated budget is therefore the operator's choice, not a built-in ranking.
   const normalized = [...new Set(candidates)]
     .filter((path) => isInsideRepository(repo, path))
     .map((path) => ({
@@ -214,11 +214,11 @@ export const collectSources = (options: SourceOptions): SourceCollection => {
 
     const metadata = lstatSync(candidate.fullPath);
     if (!metadata.isFile() || metadata.isSymbolicLink()) continue;
-    if (metadata.size > options.maxFileBytes) {
+    if (options.maxFileBytes !== undefined && metadata.size > options.maxFileBytes) {
       skipped.push({ path: candidate.relativePath, reason: `larger than ${options.maxFileBytes} bytes` });
       continue;
     }
-    if (totalBytes + metadata.size > options.maxInputBytes) {
+    if (options.maxInputBytes !== undefined && totalBytes + metadata.size > options.maxInputBytes) {
       skipped.push({ path: candidate.relativePath, reason: `total source limit ${options.maxInputBytes} bytes reached` });
       continue;
     }

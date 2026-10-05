@@ -16,7 +16,6 @@ import { syncDocumentation } from "./sync/sync.js";
 import { HELP, helpFor } from "./cli/help.js";
 import { printAnswer } from "./cli/answer.js";
 import { parseArguments } from "./cli/arguments.js";
-import { requiredBudget } from "./cli/budgets.js";
 import type { ParsedArguments } from "./cli/arguments.js";
 import { readCredential } from "./cli/skarbiec.js";
 
@@ -76,12 +75,12 @@ const main = async (): Promise<void> => {
     return;
   }
 
-  // Built only by the commands that read sources, so a sync or init never needs these budgets.
+  // A byte limit applies only when its flag is given; otherwise every source is read whole.
   const sourceOptions = () => ({
     repo: args.repo,
     output: args.output,
-    maxInputBytes: requiredBudget(args.maxInputBytes, "--max-input-bytes"),
-    maxFileBytes: requiredBudget(args.maxFileBytes, "--max-file-bytes"),
+    ...(args.maxInputBytes === undefined ? {} : { maxInputBytes: args.maxInputBytes }),
+    ...(args.maxFileBytes === undefined ? {} : { maxFileBytes: args.maxFileBytes }),
     ...(args.sources.length > 0 ? { sources: args.sources } : {}),
   });
 
@@ -177,7 +176,7 @@ const main = async (): Promise<void> => {
       head: args.head,
       model: args.model,
       ...(args.maxTokens === undefined ? {} : { maxTokens: args.maxTokens }),
-      maxDiffBytes: requiredBudget(args.maxDiffBytes, "--max-diff-bytes"),
+      ...(args.maxDiffBytes === undefined ? {} : { maxDiffBytes: args.maxDiffBytes }),
       ...(args.instruction ? { instruction: args.instruction } : {}),
     };
     const result = await checkDocumentation(checkOptions, client);

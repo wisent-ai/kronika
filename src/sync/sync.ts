@@ -137,23 +137,11 @@ export const syncDocumentation = async (
       continue;
     }
 
-    // The model is called only from here on, so only here must every byte budget be stated.
+    // A byte limit applies only where the manifest or a --max-* flag states one; unstated,
+    // the whole of every source and the whole diff are read.
     const maxInputBytes = document.maxInputBytes ?? options.defaults.maxInputBytes;
     const maxFileBytes = document.maxFileBytes ?? options.defaults.maxFileBytes;
     const maxDiffBytes = document.maxDiffBytes ?? options.defaults.maxDiffBytes;
-    if (maxInputBytes === undefined || maxFileBytes === undefined || maxDiffBytes === undefined) {
-      const unstated = Object.entries({ maxInputBytes, maxFileBytes, maxDiffBytes })
-        .filter(([, value]) => value === undefined)
-        .map(([field]) => field);
-      outcomes.push({
-        output: document.output,
-        action: "failed",
-        detail: `sources changed but ${unstated.join(", ")} is not stated: set it on this document in the manifest or pass the matching --max-* flag`,
-        changedPaths,
-        findings: [],
-      });
-      continue;
-    }
 
     let findings: DocumentationFinding[];
     let passed: boolean;
@@ -168,9 +156,9 @@ export const syncDocumentation = async (
           head: headSha,
           model,
           ...(maxTokens === undefined ? {} : { maxTokens }),
-          maxInputBytes,
-          maxFileBytes,
-          maxDiffBytes,
+          ...(maxInputBytes === undefined ? {} : { maxInputBytes }),
+          ...(maxFileBytes === undefined ? {} : { maxFileBytes }),
+          ...(maxDiffBytes === undefined ? {} : { maxDiffBytes }),
           diffPaths: [...document.sources, document.output],
           ...(document.instruction === undefined ? {} : { instruction: document.instruction }),
         },
@@ -222,8 +210,8 @@ export const syncDocumentation = async (
           sources: document.sources,
           model,
           ...(maxTokens === undefined ? {} : { maxTokens }),
-          maxInputBytes,
-          maxFileBytes,
+          ...(maxInputBytes === undefined ? {} : { maxInputBytes }),
+          ...(maxFileBytes === undefined ? {} : { maxFileBytes }),
           apply: true,
           instruction: rewriteInstruction(document, findings),
         },
