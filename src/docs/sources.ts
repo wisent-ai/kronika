@@ -172,28 +172,6 @@ const automaticSource = (path: string): boolean => {
   return Boolean(AUTOMATIC_TEXT_EXTENSIONS[extname(name).toLowerCase()]);
 };
 
-// The order sources are handed to the model, best first: the document being written, then what
-// already describes the repository, its manifests, its configuration, its code, everything else,
-// and its tests last.
-const PRIORITY_OUTPUT = 0;
-const PRIORITY_DOCUMENTATION = 1;
-const PRIORITY_MANIFEST = 2;
-const PRIORITY_CONFIGURATION = 3;
-const PRIORITY_CODE = 4;
-const PRIORITY_OTHER = 5;
-const PRIORITY_TESTS = 6;
-
-const priority = (relativePath: string, output: string): number => {
-  if (relativePath === output) return PRIORITY_OUTPUT;
-  const lower = relativePath.toLowerCase();
-  if (lower === "readme.md" || lower.startsWith("docs/")) return PRIORITY_DOCUMENTATION;
-  if (["package.json", "pyproject.toml", "cargo.toml", "go.mod"].includes(lower)) return PRIORITY_MANIFEST;
-  if (lower.includes("config") || lower.includes("schema")) return PRIORITY_CONFIGURATION;
-  if (lower.startsWith("src/") || lower.startsWith("app/")) return PRIORITY_CODE;
-  if (lower.includes("test")) return PRIORITY_TESTS;
-  return PRIORITY_OTHER;
-};
-
 export const collectSources = (options: SourceOptions): SourceCollection => {
   const repo = resolve(options.repo);
   if (!statSync(repo).isDirectory()) throw new Error(`Repository is not a directory: ${repo}`);
@@ -210,16 +188,16 @@ export const collectSources = (options: SourceOptions): SourceCollection => {
     throw new Error(`Output is outside the repository: ${options.output}`);
   }
 
+  // The document being written goes first; every other source keeps the order the operator
+  // listed it in (--source, or the manifest's sources), or Git's order when discovered. Which
+  // files fit the stated budget is therefore the operator's choice, not a built-in ranking.
   const normalized = [...new Set(candidates)]
     .filter((path) => isInsideRepository(repo, path))
     .map((path) => ({
       fullPath: path,
       relativePath: relative(repo, path).split(sep).join("/"),
     }))
-    .sort((left, right) => {
-      const rank = priority(left.relativePath, outputRelative) - priority(right.relativePath, outputRelative);
-      return rank || left.relativePath.localeCompare(right.relativePath);
-    });
+    .sort((left, right) => Number(right.relativePath === outputRelative) - Number(left.relativePath === outputRelative));
 
   const documents: SourceDocument[] = [];
   const skipped: SkippedSource[] = [];
