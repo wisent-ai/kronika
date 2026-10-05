@@ -93,7 +93,7 @@ export class BramaClient implements CompletionClient {
     const body = JSON.stringify({
       model: request.model,
       messages: request.messages,
-      max_tokens: request.maxTokens,
+      ...(request.maxTokens === undefined ? {} : { max_tokens: request.maxTokens }),
     });
 
     // No clock on the request: it ends with Brama's answer or a transport error.

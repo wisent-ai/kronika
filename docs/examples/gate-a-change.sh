@@ -1,14 +1,18 @@
 #!/bin/sh
 # gate-a-change.sh — CI documentation gate: audit exactly this branch's
 # changes against current documentation; exit 1 blocks the merge.
-# Needs: BRAMA_URL and BRAMA_API_KEY_ROLE (ROLE#FIELD of the Brama bearer) in the environment, and stado on PATH.
+# Needs: BRAMA_URL and BRAMA_API_KEY_ROLE (ROLE#FIELD of the Brama bearer) in the environment, and stado on PATH,
+# plus the budgets this gate allows: KRONIKA_MAX_INPUT_BYTES, KRONIKA_MAX_FILE_BYTES, KRONIKA_MAX_DIFF_BYTES.
 # Run: sh gate-a-change.sh [base-ref]
 set -eu
 BASE="${1:-origin/main}"
 
 # the three-dot diff audits only changes since the merge base with BASE;
 # --json puts named findings (severity, code, requiredChange) in the log
-kronika check --repo . --base "$BASE" --json
+kronika check --repo . --base "$BASE" --json \
+  --max-input-bytes "${KRONIKA_MAX_INPUT_BYTES:?the total source budget, in bytes}" \
+  --max-file-bytes "${KRONIKA_MAX_FILE_BYTES:?the per-file source limit, in bytes}" \
+  --max-diff-bytes "${KRONIKA_MAX_DIFF_BYTES:?the Git diff budget, in bytes}"
 
 # exit status is the verdict: 0 = documentation covers the change,
 # 1 = at least one blocker finding (or the audit itself failed — the gate

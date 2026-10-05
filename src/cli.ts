@@ -16,6 +16,7 @@ import { syncDocumentation } from "./sync/sync.js";
 import { HELP, helpFor } from "./cli/help.js";
 import { printAnswer } from "./cli/answer.js";
 import { parseArguments } from "./cli/arguments.js";
+import { requiredBudget } from "./cli/budgets.js";
 import type { ParsedArguments } from "./cli/arguments.js";
 import { readCredential } from "./cli/skarbiec.js";
 
@@ -75,16 +76,17 @@ const main = async (): Promise<void> => {
     return;
   }
 
-  const sourceOptions = {
+  // Built only by the commands that read sources, so a sync or init never needs these budgets.
+  const sourceOptions = () => ({
     repo: args.repo,
     output: args.output,
-    maxInputBytes: args.maxInputBytes,
-    maxFileBytes: args.maxFileBytes,
+    maxInputBytes: requiredBudget(args.maxInputBytes, "--max-input-bytes"),
+    maxFileBytes: requiredBudget(args.maxFileBytes, "--max-file-bytes"),
     ...(args.sources.length > 0 ? { sources: args.sources } : {}),
-  };
+  });
 
   if (args.command === "sources") {
-    const collection = collectSources(sourceOptions);
+    const collection = collectSources(sourceOptions());
     printAnswer({
       repo: args.repo,
       output: args.output,
@@ -170,12 +172,12 @@ const main = async (): Promise<void> => {
   }
   if (args.command === "check") {
     const checkOptions: CheckDocumentationOptions = {
-      ...sourceOptions,
+      ...sourceOptions(),
       base: args.base ?? "",
       head: args.head,
       model: args.model,
-      maxTokens: args.maxTokens,
-      maxDiffBytes: args.maxDiffBytes,
+      ...(args.maxTokens === undefined ? {} : { maxTokens: args.maxTokens }),
+      maxDiffBytes: requiredBudget(args.maxDiffBytes, "--max-diff-bytes"),
       ...(args.instruction ? { instruction: args.instruction } : {}),
     };
     const result = await checkDocumentation(checkOptions, client);
@@ -202,9 +204,9 @@ const main = async (): Promise<void> => {
     return;
   }
   const writeOptions: WriteDocumentationOptions = {
-    ...sourceOptions,
+    ...sourceOptions(),
     model: args.model,
-    maxTokens: args.maxTokens,
+    ...(args.maxTokens === undefined ? {} : { maxTokens: args.maxTokens }),
     apply: args.apply,
     ...(args.instruction ? { instruction: args.instruction } : {}),
   };

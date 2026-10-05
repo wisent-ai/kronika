@@ -23,11 +23,6 @@ const WRITING_CONTRACT = `You author a documentation content plan as a single JS
 - Declare every recurring concept term in plan.terms with the page slug that defines it.
 - Cover every required page kind from the brief.`;
 
-function excerpt(absPath, limit = 6000) {
-  const text = readFileSync(absPath, "utf8");
-  return text.length > limit ? `${text.slice(0, limit)}\n[... truncated]` : text;
-}
-
 async function collectExcerpts(declared, brief, repo) {
   const excerpts = {};
   if (brief.surfaces?.cli?.ok) {
@@ -40,7 +35,7 @@ async function collectExcerpts(declared, brief, repo) {
   }
   for (const [name, rel] of Object.entries(files)) {
     const abs = expandPath(rel, repo);
-    if (existsSync(abs)) excerpts[rel] = excerpt(abs);
+    if (existsSync(abs)) excerpts[rel] = readFileSync(abs, "utf8");
   }
   return excerpts;
 }

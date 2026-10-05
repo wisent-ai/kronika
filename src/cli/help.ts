@@ -2,13 +2,6 @@
 // that say what a run will and will not do. Held as text of its own because it
 // is the product speaking to a person rather than logic.
 
-import {
-  DEFAULT_MAX_DIFF_BYTES,
-  DEFAULT_MAX_FILE_BYTES,
-  DEFAULT_MAX_INPUT_BYTES,
-  DEFAULT_MAX_TOKENS,
-} from "./budgets.js";
-
 
 const HELP = `Kronika — source-grounded documentation writing through Brama
 
@@ -45,10 +38,10 @@ Options:
   --head <ref>           Head Git commit for check (default: HEAD)
   --instruction <text>   Additional documentation goal
   --model <selector>     Brama model selector (default: KRONIKA_MODEL or any)
-  --max-input-bytes <n>  Total source budget (default: ${DEFAULT_MAX_INPUT_BYTES})
-  --max-file-bytes <n>   Per-file source limit (default: ${DEFAULT_MAX_FILE_BYTES})
-  --max-tokens <n>       Completion token budget (default: ${DEFAULT_MAX_TOKENS})
-  --max-diff-bytes <n>   Git diff budget for check (default: ${DEFAULT_MAX_DIFF_BYTES})
+  --max-input-bytes <n>  Total source budget; required by sources, check and write
+  --max-file-bytes <n>   Per-file source limit; required by sources, check and write
+  --max-tokens <n>       Completion token budget (default: none sent; the Brama alias's own limit)
+  --max-diff-bytes <n>   Git diff budget; required by check
   --apply                Atomically replace the target document
   --manifest <path>      Sync manifest inside the repository (default: kronika.sync.json)
   --state <path>         Sync state file inside the repository (default: kronika.sync-state.json)

@@ -11,7 +11,6 @@ import {
   JOURNEY_ID,
   JOURNEY_VERSION,
   JOURNEY_VERSION_ID,
-  MAX_SCREENS,
   PRODUCT_ID,
 } from "./shapes.js";
 import type { Bundle, Condition, JourneyDefinition, Screen } from "./shapes.js";
@@ -99,7 +98,7 @@ export const validateBundle = (candidate: unknown): Bundle => {
     || sha256(candidate.canonical_definition) !== candidate.content_sha256) {
     throw new Error("onboarding bundle integrity is invalid");
   }
-  if (!Array.isArray(definition.screens) || definition.screens.length === 0 || definition.screens.length > MAX_SCREENS) {
+  if (!Array.isArray(definition.screens) || definition.screens.length === 0) {
     throw new Error("onboarding screen graph is invalid");
   }
   const ids = new Set<string>();

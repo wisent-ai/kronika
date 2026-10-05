@@ -1,15 +1,9 @@
 // What the command line says, as this product reads it: the shape of one
-// parsed invocation, the budgets a run starts with unless a flag says
-// otherwise, and the loop that turns argv into that shape.
+// parsed invocation (budgets only where a flag states them) and the loop that
+// turns argv into that shape.
 
 import type { OnboardingAction } from "../onboarding/onboarding.js";
-import {
-  DEFAULT_MAX_DIFF_BYTES,
-  DEFAULT_MAX_FILE_BYTES,
-  DEFAULT_MAX_INPUT_BYTES,
-  DEFAULT_MAX_TOKENS,
-  MAX_PORT,
-} from "./budgets.js";
+import { MAX_PORT } from "./budgets.js";
 
 type ParsedArguments = {
   command: "check" | "write" | "sources" | "sync" | "init" | "gui" | "onboarding" | "help";
@@ -18,11 +12,11 @@ type ParsedArguments = {
   sources: string[];
   documents: string[];
   model: string;
-  maxInputBytes: number;
-  maxFileBytes: number;
-  maxTokens: number;
+  maxInputBytes?: number;
+  maxFileBytes?: number;
+  maxTokens?: number;
   port: number;
-  maxDiffBytes: number;
+  maxDiffBytes?: number;
   apply: boolean;
   json: boolean;
   base?: string;
@@ -59,11 +53,7 @@ const parseArguments = (argv: string[]): ParsedArguments => {
       sources: [],
       documents: [],
       model: process.env.KRONIKA_MODEL || "any",
-      maxInputBytes: DEFAULT_MAX_INPUT_BYTES,
-      maxFileBytes: DEFAULT_MAX_FILE_BYTES,
-      maxTokens: DEFAULT_MAX_TOKENS,
       port: 0,
-      maxDiffBytes: DEFAULT_MAX_DIFF_BYTES,
       apply: false,
       json: false,
       head: "HEAD",
@@ -85,10 +75,6 @@ const parseArguments = (argv: string[]): ParsedArguments => {
     sources: [],
     documents: [],
     model: process.env.KRONIKA_MODEL || "any",
-    maxInputBytes: DEFAULT_MAX_INPUT_BYTES,
-    maxFileBytes: DEFAULT_MAX_FILE_BYTES,
-    maxTokens: DEFAULT_MAX_TOKENS,
-    maxDiffBytes: DEFAULT_MAX_DIFF_BYTES,
     port: 0,
     apply: false,
     json: false,

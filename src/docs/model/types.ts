@@ -6,7 +6,8 @@ export type ChatMessage = {
 export type CompletionRequest = {
   messages: ChatMessage[];
   model: string;
-  maxTokens: number;
+  /** Completion budget; absent, the request names none and the alias's own limit applies. */
+  maxTokens?: number;
 };
 
 export type CompletionResult = {
@@ -49,7 +50,8 @@ export type CheckDocumentationOptions = SourceOptions & {
   head: string;
   instruction?: string;
   model: string;
-  maxTokens: number;
+  /** Completion budget; absent, the Brama alias's own limit applies. */
+  maxTokens?: number;
   maxDiffBytes: number;
   /** Git pathspecs the audited diff is restricted to; empty audits the whole
    * range. Sync passes the document's declared sources here so one drifted
@@ -81,7 +83,8 @@ export type SourceOptions = {
 export type WriteDocumentationOptions = SourceOptions & {
   instruction?: string;
   model: string;
-  maxTokens: number;
+  /** Completion budget; absent, the Brama alias's own limit applies. */
+  maxTokens?: number;
   apply: boolean;
 };
 

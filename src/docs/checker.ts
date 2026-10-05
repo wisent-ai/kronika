@@ -182,7 +182,7 @@ export const checkDocumentation = async (
   const change = repositoryChange(repo, options.base, options.head, options.maxDiffBytes, options.diffPaths ?? []);
   const completion = await client.complete({
     model: options.model,
-    maxTokens: options.maxTokens,
+    ...(options.maxTokens === undefined ? {} : { maxTokens: options.maxTokens }),
     messages: buildDocumentationCheckMessages(options, collection, change),
   });
   return {

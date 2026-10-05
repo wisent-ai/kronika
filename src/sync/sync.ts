@@ -78,13 +78,8 @@ export const syncDocumentation = async (
 
   for (const document of manifest.documents) {
     const entry = state.documents[document.output];
-    const budgets = {
-      model: document.model ?? options.defaults.model,
-      maxTokens: document.maxTokens ?? options.defaults.maxTokens,
-      maxInputBytes: document.maxInputBytes ?? options.defaults.maxInputBytes,
-      maxFileBytes: document.maxFileBytes ?? options.defaults.maxFileBytes,
-      maxDiffBytes: document.maxDiffBytes ?? options.defaults.maxDiffBytes,
-    };
+    const model = document.model ?? options.defaults.model;
+    const maxTokens = document.maxTokens ?? options.defaults.maxTokens;
     const advance = (lastAction: string): void => {
       state.documents[document.output] = {
         headSha,
@@ -142,6 +137,24 @@ export const syncDocumentation = async (
       continue;
     }
 
+    // The model is called only from here on, so only here must every byte budget be stated.
+    const maxInputBytes = document.maxInputBytes ?? options.defaults.maxInputBytes;
+    const maxFileBytes = document.maxFileBytes ?? options.defaults.maxFileBytes;
+    const maxDiffBytes = document.maxDiffBytes ?? options.defaults.maxDiffBytes;
+    if (maxInputBytes === undefined || maxFileBytes === undefined || maxDiffBytes === undefined) {
+      const unstated = Object.entries({ maxInputBytes, maxFileBytes, maxDiffBytes })
+        .filter(([, value]) => value === undefined)
+        .map(([field]) => field);
+      outcomes.push({
+        output: document.output,
+        action: "failed",
+        detail: `sources changed but ${unstated.join(", ")} is not stated: set it on this document in the manifest or pass the matching --max-* flag`,
+        changedPaths,
+        findings: [],
+      });
+      continue;
+    }
+
     let findings: DocumentationFinding[];
     let passed: boolean;
     let summary: string;
@@ -153,11 +166,11 @@ export const syncDocumentation = async (
           sources: document.sources,
           base: entry.headSha,
           head: headSha,
-          model: budgets.model,
-          maxTokens: budgets.maxTokens,
-          maxInputBytes: budgets.maxInputBytes,
-          maxFileBytes: budgets.maxFileBytes,
-          maxDiffBytes: budgets.maxDiffBytes,
+          model,
+          ...(maxTokens === undefined ? {} : { maxTokens }),
+          maxInputBytes,
+          maxFileBytes,
+          maxDiffBytes,
           diffPaths: [...document.sources, document.output],
           ...(document.instruction === undefined ? {} : { instruction: document.instruction }),
         },
@@ -207,10 +220,10 @@ export const syncDocumentation = async (
           repo,
           output: document.output,
           sources: document.sources,
-          model: budgets.model,
-          maxTokens: budgets.maxTokens,
-          maxInputBytes: budgets.maxInputBytes,
-          maxFileBytes: budgets.maxFileBytes,
+          model,
+          ...(maxTokens === undefined ? {} : { maxTokens }),
+          maxInputBytes,
+          maxFileBytes,
           apply: true,
           instruction: rewriteInstruction(document, findings),
         },

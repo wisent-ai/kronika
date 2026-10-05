@@ -47,7 +47,8 @@ kronika sources \
   --repo /path/to/project \
   --source README.md \
   --source src \
-  --source docs
+  --source docs \
+  --max-input-bytes N --max-file-bytes N
 ```
 
 Automatic discovery uses
@@ -62,6 +63,7 @@ kronika check \
   --repo /path/to/project \
   --base origin/main \
   --head HEAD \
+  --max-input-bytes N --max-file-bytes N --max-diff-bytes N \
   --json
 ```
 
@@ -78,6 +80,7 @@ kronika write \
   --output docs/architecture.md \
   --source README.md \
   --source src \
+  --max-input-bytes N --max-file-bytes N \
   --instruction 'Document components, request flow, invariants, and failure modes.'
 ```
 
@@ -120,13 +123,21 @@ reconciliation, so a scheduler (cron, launchd, `stado schedule`) can run the
 same command forever and documentation follows the repository by itself.
 Exit status `1` means at least one document failed to reconcile.
 
+Kronika assumes no budget. A command that reads sources is refused by name
+until `--max-input-bytes` and `--max-file-bytes` are given (`check` also needs
+`--max-diff-bytes`). In sync each document may state `maxInputBytes`,
+`maxFileBytes`, `maxDiffBytes`, `maxTokens` and `model` in the manifest; the
+matching flag covers documents that do not. A drifted document with an
+unstated byte budget fails with the missing field named, and the other
+documents still reconcile.
+
 | Option | Purpose |
 |---|---|
 | `--model <selector>` | override the Brama selector |
-| `--max-input-bytes <n>` | total source payload; default `200000` |
-| `--max-file-bytes <n>` | one source file; default `64000` |
-| `--max-tokens <n>` | completion budget; default `8000` |
-| `--max-diff-bytes <n>` | complete Git diff budget for `check`; default `200000` |
+| `--max-input-bytes <n>` | total source payload; required by `sources`, `check` and `write` |
+| `--max-file-bytes <n>` | one source file; required by `sources`, `check` and `write` |
+| `--max-tokens <n>` | completion budget; unset, no budget is sent and the Brama alias's own output limit applies |
+| `--max-diff-bytes <n>` | complete Git diff budget; required by `check` |
 | `--base <ref>` | required base commit for `check` |
 | `--head <ref>` | head commit for `check`; default `HEAD` |
 | `--json` | machine-readable result |

@@ -15,7 +15,6 @@ export const STATE_PATH = join(
   "kronika",
   "onboarding.json",
 );
-export const MAX_SCREENS = 128;
 
 export type Scalar = string | number | boolean | null;
 

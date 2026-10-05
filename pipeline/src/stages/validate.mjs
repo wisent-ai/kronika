@@ -16,9 +16,6 @@ import path from "node:path";
 import { validatePlan } from "../schema.mjs";
 import { expandPath, readJson, printReport, parseCommand, runCommand, fetchText, isMain, resolveEndpoint, chatComplete } from "../lib.mjs";
 
-// A word used on this many pages is a term the plan must declare.
-const TERM_PAGE_THRESHOLD = 3;
-
 /** Visit every block with its JSONPath-ish address and owning page. */
 export function forEachBlock(plan, fn) {
   (plan.pages ?? []).forEach((page, pi) => {
@@ -233,18 +230,19 @@ async function validateTerms(plan, brief, judge) {
   const covered = (w) =>
     declaredWords.has(w) || declaredWords.has(`${w}s`) || (w.endsWith("s") && declaredWords.has(w.slice(0, -1)));
 
-  // A word recurring on >=3 pages that names a product concept must be a
-  // declared term; whether it names one is the model's judgement.
+  // A word on more than one page that names a product concept must be a
+  // declared term; whether it names one is the model's judgement, for every
+  // such word, short or long.
   const usage = new Map();
   for (const page of plan.pages ?? []) {
-    const words = new Set(pageProse(page).match(/[a-z][a-z-]{3,}/g) ?? []);
+    const words = new Set(pageProse(page).match(/[a-z][a-z-]*/g) ?? []);
     for (const w of words) {
       if (w === product) continue;
       if (!usage.has(w)) usage.set(w, []);
       usage.get(w).push(page.slug);
     }
   }
-  const recurring = [...usage].filter(([word, pages]) => pages.length >= TERM_PAGE_THRESHOLD && !covered(word));
+  const recurring = [...usage].filter(([, pages]) => pages.length > 1).filter(([word]) => !covered(word));
   if (recurring.length === 0) return failures;
   let concepts;
   try {

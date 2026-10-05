@@ -213,18 +213,20 @@ cd kronika
 npm install
 npm run build
 node dist/src/cli.js init --repo .
-node dist/src/cli.js sources --repo . --source README.md --source src
+node dist/src/cli.js sources --repo . --source README.md --source src --max-input-bytes N --max-file-bytes N
 ```
 
 Expected result: `init` reports every imported document and writes only
 `kronika.sync.json`; `sources` prints the selected manifest, byte total, and
-skipped files with reasons. Only configure Brama after reviewing that boundary.
+skipped files with reasons. `N` is the budget you allow: Kronika assumes none
+and refuses a source-reading command that does not state both. Only configure
+Brama after reviewing that boundary.
 
 For local command installation:
 
 ```bash
 npm link
-kronika sources --repo /path/to/project
+kronika sources --repo /path/to/project --max-input-bytes N --max-file-bytes N
 ```
 
 To use the graphical importer instead, keep this foreground command running and

@@ -9,10 +9,9 @@ import { initializeDocumentationWorkspace } from "./sync/project.js";
 import { loadSyncManifest, type SyncManifest } from "./sync/sync.js";
 
 const LOOPBACK_HOST = "127.0.0.1";
+// One import request carries at most 64 KiB. How many paths it names and how long each is are
+// the filesystem's to refuse, by name.
 const MAX_REQUEST_BYTES = 64 * 1024;
-const MAX_SELECTIONS = 256;
-const MAX_PATH_LENGTH = 4_096;
-const MAX_INSTRUCTION_LENGTH = 16_384;
 const ASSET_ROOT = fileURLToPath(new URL("../../gui/", import.meta.url));
 // The statuses the GUI answers with.
 const HTTP_OK = 200;
@@ -128,15 +127,11 @@ const readJson = async (request: IncomingMessage): Promise<unknown> => {
 
 const optionalPaths = (value: unknown, label: string): string[] | undefined => {
   if (value === undefined) return undefined;
-  if (!Array.isArray(value) || value.length > MAX_SELECTIONS) {
-    throw new HttpError(HTTP_BAD_REQUEST, `${label} must be an array of at most ${MAX_SELECTIONS} paths`);
-  }
+  if (!Array.isArray(value)) throw new HttpError(HTTP_BAD_REQUEST, `${label} must be an array of paths`);
   const paths = value.map((entry) => {
     if (typeof entry !== "string") throw new HttpError(HTTP_BAD_REQUEST, `${label} entries must be strings`);
     const path = entry.trim();
-    if (!path || path.length > MAX_PATH_LENGTH) {
-      throw new HttpError(HTTP_BAD_REQUEST, `${label} entries must contain 1 to ${MAX_PATH_LENGTH} characters`);
-    }
+    if (!path) throw new HttpError(HTTP_BAD_REQUEST, `${label} entries must not be empty`);
     return path;
   });
   return paths.length > 0 ? paths : undefined;
@@ -149,18 +144,14 @@ const parseImportRequest = (value: unknown): ImportRequest => {
   const input = value as Partial<Record<keyof ImportRequest, unknown>>;
   if (typeof input.manifestPath !== "string") throw new HttpError(HTTP_BAD_REQUEST, "manifestPath must be a string");
   const manifestPath = input.manifestPath.trim();
-  if (!manifestPath || manifestPath.length > MAX_PATH_LENGTH) {
-    throw new HttpError(HTTP_BAD_REQUEST, `manifestPath must contain 1 to ${MAX_PATH_LENGTH} characters`);
-  }
+  if (!manifestPath) throw new HttpError(HTTP_BAD_REQUEST, "manifestPath must not be empty");
   if (typeof input.replace !== "boolean") throw new HttpError(HTTP_BAD_REQUEST, "replace must be a boolean");
 
   let instruction: string | undefined;
   if (input.instruction !== undefined) {
     if (typeof input.instruction !== "string") throw new HttpError(HTTP_BAD_REQUEST, "instruction must be a string");
     instruction = input.instruction.trim();
-    if (instruction.length > MAX_INSTRUCTION_LENGTH) {
-      throw new HttpError(HTTP_BAD_REQUEST, `instruction must contain at most ${MAX_INSTRUCTION_LENGTH} characters`);
-    }
+    // An instruction of any length is the person's: the model's context refuses what it cannot read.
     if (!instruction) instruction = undefined;
   }
 
@@ -256,10 +247,6 @@ export const startKronikaGui = async (options: GuiServerOptions): Promise<GuiSer
       sendJson(response, statusCode, { error: message });
     });
   });
-
-  server.requestTimeout = 15_000;
-  server.headersTimeout = 10_000;
-  server.maxRequestsPerSocket = 100;
 
   await new Promise<void>((resolveListening, rejectListening) => {
     const onError = (error: Error): void => rejectListening(error);

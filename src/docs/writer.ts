@@ -18,14 +18,11 @@ import type {
   WriteDocumentationResult,
 } from "./model/types.js";
 
-// Fewer characters than this is a refusal or a fragment, not documentation.
-const MIN_DOCUMENT_CHARS = 20;
-
 const normalizeModelOutput = (content: string): string => {
   let normalized = content.trim();
   const fenced = normalized.match(/^```(?:markdown|md)?\s*\n([\s\S]*?)\n```$/i);
   if (fenced?.[1]) normalized = fenced[1].trim();
-  if (normalized.length < MIN_DOCUMENT_CHARS) throw new Error("Brama returned documentation that is too short");
+  if (!normalized) throw new Error("Brama returned empty documentation");
   if (normalized.includes("\0")) throw new Error("Brama returned invalid NUL content");
   return `${normalized}\n`;
 };
@@ -71,7 +68,7 @@ export const writeDocumentation = async (
   const completion = await client.complete({
     messages: buildDocumentationMessages(options, collection),
     model: options.model,
-    maxTokens: options.maxTokens,
+    ...(options.maxTokens === undefined ? {} : { maxTokens: options.maxTokens }),
   });
   const content = normalizeModelOutput(completion.content);
   if (options.apply) writeAtomically(outputPath, content);

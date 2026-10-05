@@ -47,12 +47,15 @@ export type SyncOutcome = {
   findings: DocumentationFinding[];
 };
 
+/** What the command line states for every document that does not state its own; an
+ * unstated byte budget fails a document that needs it, and an unstated token budget
+ * leaves the Brama alias's own limit in force. */
 export type SyncDefaults = {
   model: string;
-  maxTokens: number;
-  maxInputBytes: number;
-  maxFileBytes: number;
-  maxDiffBytes: number;
+  maxTokens: number | undefined;
+  maxInputBytes: number | undefined;
+  maxFileBytes: number | undefined;
+  maxDiffBytes: number | undefined;
 };
 
 export type SyncOptions = {
