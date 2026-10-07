@@ -89,8 +89,8 @@
           "blocks": [
             {
               "type": "code",
-              "claim": { "source": "onboarding", "evidence": "stado submit \"printf 'hello from Stado\\n'\"" },
-              "code": { "label": "shell", "code": "stado submit \"printf 'hello from Stado\\n'\"\nstado status <job-id>\nstado results <job-id> ./stado-result" }
+              "claim": { "source": "onboarding", "evidence": "stado submit --run-id hello-from-stado \"printf 'hello from Stado\\n'\"" },
+              "code": { "label": "shell", "code": "stado submit --run-id hello-from-stado \"printf 'hello from Stado\\n'\"\nstado status <job-id>\nstado results <job-id> ./stado-result" }
             },
             {
               "type": "paragraph",
