@@ -39,6 +39,11 @@ provider fallback. There is no quality judge and no scoring step: the
 writing standard is what the author reads, the mechanical validators are
 what the build enforces, and publication follows the consuming site's CI.
 
+The authoring request carries the selected model and the complete messages.
+Kronika does not choose a sampling temperature; the Brama route owns generation
+settings. A failed Brama response reports its HTTP status and complete error
+body, without a fixed-size diagnostic preview.
+
 The writing standard itself was written by reading exactly its two named
 sources — the 50-reference evidence set in Spis and our own previous
 documentation (the restored February corpus). When either source changes,

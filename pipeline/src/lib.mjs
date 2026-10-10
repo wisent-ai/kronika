@@ -171,13 +171,13 @@ export async function chatComplete({ endpoint, messages, model = "default" }) {
     res = await fetch(url, {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ model, messages, temperature: 0 }),
+      body: JSON.stringify({ model, messages }),
     });
   } catch (e) {
     throw new InfraDownError(url, String(e.cause?.code ?? e.cause?.message ?? e.message));
   }
   if (!res.ok) {
-    const body = (await res.text()).slice(0, 400).trim();
+    const body = (await res.text()).trim();
     if (INFRA_DOWN_STATUSES.includes(res.status)) throw new InfraDownError(url, `HTTP ${res.status}: ${body}`);
     throw new Error(`brama answered HTTP ${res.status}: ${body}`);
   }
