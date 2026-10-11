@@ -1,0 +1,6 @@
+{
+  "schema_version": 1,
+  "product": "kronika",
+  "releases": false,
+  "reason": "Kronika is installed from source: the README clones the repository, runs npm install and npm link, and the package has no release workflow or publish configuration and is not on the npm registry, so it declares no package, image, hosted or versioned artifact publisher."
+}
