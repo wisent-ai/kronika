@@ -68,18 +68,28 @@ export class OnboardingSession {
     await this.flush();
   }
 
+  /**
+   * Deliver the queued events in order. An event the control plane does not
+   * take stays queued, and why is kept in `deliveryFailure`, so the queue
+   * never grows with no reason shown.
+   */
+  deliveryFailure: string | null = null;
+
   async flush(): Promise<void> {
     while (this.state.pending_events.length > 0) {
       const event = this.state.pending_events[0];
       if (!event) break;
       try {
         await this.transport.collectEvent(event);
-      } catch {
+      } catch (error) {
+        const cause = error instanceof Error ? error.message : String(error);
+        this.deliveryFailure = `event ${event.event_name} was not delivered and stays queued with ${this.state.pending_events.length} pending: ${cause}`;
         return;
       }
       this.state.pending_events.shift();
       await this.save();
     }
+    this.deliveryFailure = null;
   }
 
   async expose(revision: string): Promise<void> {

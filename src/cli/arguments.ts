@@ -30,13 +30,32 @@ type ParsedArguments = {
   replace: boolean;
   onboarding: OnboardingAction;
 };
+const requiredValue = (flag: string, value: string | undefined): string => {
+  if (value === undefined || !value.trim() || value.startsWith("--") || value === "-h") {
+    throw new Error(`${flag} requires a value; another option cannot supply it`);
+  }
+  return value;
+};
+
 const positiveIntegerArgument = (flag: string, value: string | undefined): number => {
-  if (value === undefined) throw new Error(`${flag} requires a value`);
-  const parsed = Number(value);
+  const parsed = Number(requiredValue(flag, value));
   if (!Number.isSafeInteger(parsed) || parsed <= 0) {
     throw new Error(`${flag} must be a positive integer`);
   }
   return parsed;
+};
+
+const optionsByCommand: Record<Exclude<ParsedArguments["command"], "help">, readonly string[]> = {
+  check: ["--repo", "--output", "--source", "--base", "--head", "--instruction", "--model",
+    "--max-input-bytes", "--max-file-bytes", "--max-tokens", "--max-diff-bytes", "--json"],
+  write: ["--repo", "--output", "--source", "--instruction", "--model",
+    "--max-input-bytes", "--max-file-bytes", "--max-tokens", "--apply", "--json"],
+  sources: ["--repo", "--output", "--source", "--max-input-bytes", "--max-file-bytes", "--json"],
+  sync: ["--repo", "--manifest", "--state", "--model", "--max-input-bytes",
+    "--max-file-bytes", "--max-tokens", "--max-diff-bytes", "--dry-run", "--commit", "--push", "--json"],
+  init: ["--repo", "--manifest", "--docs", "--source", "--instruction", "--replace", "--json"],
+  gui: ["--repo", "--port"],
+  onboarding: ["--advance", "--skip", "--reset", "--status", "--json"],
 };
 
 const parseArguments = (argv: string[]): ParsedArguments => {
@@ -91,20 +110,24 @@ const parseArguments = (argv: string[]): ParsedArguments => {
   for (let index = 1; index < argv.length; index += 1) {
     const flag = argv[index];
     const value = argv[index + 1];
+    if (flag !== "--help" && flag !== "-h" && !optionsByCommand[command].includes(flag)) {
+      throw new Error(`${command} does not accept ${flag}`);
+    }
+    if (["--advance", "--skip", "--reset", "--status"].includes(flag)
+      && parsed.onboarding !== "show") {
+      throw new Error(`onboarding accepts one action; --${parsed.onboarding} conflicts with ${flag}`);
+    }
     switch (flag) {
       case "--base":
-        if (value === undefined) throw new Error("--base requires a value");
-        parsed.base = value;
+        parsed.base = requiredValue(flag, value);
         index += 1;
         break;
       case "--head":
-        if (value === undefined) throw new Error("--head requires a value");
-        parsed.head = value;
+        parsed.head = requiredValue(flag, value);
         index += 1;
         break;
       case "--repo":
-        if (value === undefined) throw new Error("--repo requires a value");
-        parsed.repo = value;
+        parsed.repo = requiredValue(flag, value);
         index += 1;
         break;
       case "--port": {
@@ -115,28 +138,23 @@ const parseArguments = (argv: string[]): ParsedArguments => {
         break;
       }
       case "--output":
-        if (value === undefined) throw new Error("--output requires a value");
-        parsed.output = value;
+        parsed.output = requiredValue(flag, value);
         index += 1;
         break;
       case "--docs":
-        if (value === undefined) throw new Error("--docs requires a value");
-        parsed.documents.push(value);
+        parsed.documents.push(requiredValue(flag, value));
         index += 1;
         break;
       case "--source":
-        if (value === undefined) throw new Error("--source requires a value");
-        parsed.sources.push(value);
+        parsed.sources.push(requiredValue(flag, value));
         index += 1;
         break;
       case "--instruction":
-        if (value === undefined) throw new Error("--instruction requires a value");
-        parsed.instruction = value;
+        parsed.instruction = requiredValue(flag, value);
         index += 1;
         break;
       case "--model":
-        if (value === undefined) throw new Error("--model requires a value");
-        parsed.model = value;
+        parsed.model = requiredValue(flag, value);
         index += 1;
         break;
       case "--max-input-bytes":
@@ -156,13 +174,11 @@ const parseArguments = (argv: string[]): ParsedArguments => {
         index += 1;
         break;
       case "--manifest":
-        if (value === undefined) throw new Error("--manifest requires a value");
-        parsed.manifest = value;
+        parsed.manifest = requiredValue(flag, value);
         index += 1;
         break;
       case "--state":
-        if (value === undefined) throw new Error("--state requires a value");
-        parsed.state = value;
+        parsed.state = requiredValue(flag, value);
         index += 1;
         break;
       case "--dry-run":
@@ -202,6 +218,12 @@ const parseArguments = (argv: string[]): ParsedArguments => {
       default:
         throw new Error(`Unknown option: ${flag}`);
     }
+  }
+  if (parsed.command === "check" && !parsed.base) {
+    throw new Error("check requires --base <ref>");
+  }
+  if (parsed.command === "sync" && parsed.push && !parsed.commit) {
+    throw new Error("sync --push requires --commit");
   }
 
   return parsed;

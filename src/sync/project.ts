@@ -26,6 +26,8 @@ export type InitializeWorkspaceOptions = {
 
 export type InitializeWorkspaceResult = {
   status: "imported" | "unchanged" | "conflicting" | "rejected";
+  /** The manifest stands as asked: written now or already identical. */
+  accepted: boolean;
   repo: string;
   manifestPath: string;
   imported: string[];
@@ -112,6 +114,7 @@ export const initializeDocumentationWorkspace = (
   if (!existsSync(repoCandidate) || !lstatSync(repoCandidate).isDirectory()) {
     return {
       status: "rejected",
+      accepted: false,
       repo: repoCandidate,
       manifestPath: resolve(repoCandidate, options.manifestPath),
       imported: [],
@@ -125,6 +128,7 @@ export const initializeDocumentationWorkspace = (
   if (!isInside(repo, manifestPath)) {
     return {
       status: "rejected",
+      accepted: false,
       repo,
       manifestPath,
       imported: [],
@@ -183,6 +187,7 @@ export const initializeDocumentationWorkspace = (
         const reason = error instanceof Error ? error.message : String(error);
         return {
           status: "rejected",
+          accepted: false,
           repo,
           manifestPath,
           imported: [],
@@ -194,6 +199,7 @@ export const initializeDocumentationWorkspace = (
       if (JSON.stringify(existing) === JSON.stringify(candidate)) {
         return {
           status: "unchanged",
+          accepted: true,
           repo,
           manifestPath,
           imported: [],
@@ -205,6 +211,7 @@ export const initializeDocumentationWorkspace = (
       if (!options.replace) {
         return {
           status: "conflicting",
+          accepted: false,
           repo,
           manifestPath,
           imported: [],
@@ -221,6 +228,7 @@ export const initializeDocumentationWorkspace = (
     writeAtomic(manifestPath, stableJson(candidate));
     return {
       status: "imported",
+      accepted: true,
       repo,
       manifestPath,
       imported: candidate.documents.map(({ output }) => output),
@@ -232,6 +240,7 @@ export const initializeDocumentationWorkspace = (
     const reason = error instanceof Error ? error.message : String(error);
     return {
       status: "rejected",
+      accepted: false,
       repo,
       manifestPath,
       imported: [],

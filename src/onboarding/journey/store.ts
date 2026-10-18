@@ -11,21 +11,42 @@ import type { Bundle, OnboardingEvent, Progress, State } from "./shapes.js";
 import { isRecord } from "./bundle.js";
 import { canonicalFallback, validateBundle } from "./bundle.js";
 
+// Only a store that does not exist yet starts fresh. One that exists but
+// cannot be read, parsed or recognised is refused with its path and cause:
+// starting fresh would be saved over it and lose its recorded evidence and
+// pending events.
 export const loadState = async (): Promise<State> => {
+  let text: string;
   try {
-    const parsed: unknown = JSON.parse(await readFile(STATE_PATH, "utf8"));
-    if (isRecord(parsed) && parsed.schema_version === 1) {
-      const state = parsed as State;
-      if (typeof state.installation_id !== "string") state.installation_id = randomUUID();
-      if (!Array.isArray(state.pending_events)) state.pending_events = [];
-      if (!isRecord(state.evidence)) state.evidence = {};
-      if (!isRecord(state.meta)) state.meta = {};
-      return state;
+    text = await readFile(STATE_PATH, "utf8");
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === "ENOENT") {
+      return { schema_version: 1, installation_id: randomUUID(), pending_events: [], evidence: {}, meta: {} };
     }
-  } catch {
-    // A missing or damaged local store is replaced by a fresh, valid one.
+    throw new Error(`onboarding state ${STATE_PATH} cannot be read: ${(error as Error).message}`);
   }
-  return { schema_version: 1, installation_id: randomUUID(), pending_events: [], evidence: {}, meta: {} };
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(text);
+  } catch (error) {
+    throw new Error(`onboarding state ${STATE_PATH} is not valid JSON: ${(error as Error).message}`);
+  }
+  if (!isRecord(parsed) || parsed.schema_version !== 1) {
+    throw new Error(`onboarding state ${STATE_PATH} is not a schema_version 1 state`);
+  }
+  if (typeof parsed.installation_id !== "string" || !parsed.installation_id.trim()) {
+    throw new Error(`onboarding state ${STATE_PATH} has no nonempty installation_id`);
+  }
+  if (!Array.isArray(parsed.pending_events)) {
+    throw new Error(`onboarding state ${STATE_PATH} pending_events must be an array`);
+  }
+  if (!isRecord(parsed.evidence)) {
+    throw new Error(`onboarding state ${STATE_PATH} evidence must be an object`);
+  }
+  if (!isRecord(parsed.meta)) {
+    throw new Error(`onboarding state ${STATE_PATH} meta must be an object`);
+  }
+  return parsed as State;
 };
 
 export const saveState = async (state: State): Promise<void> => {

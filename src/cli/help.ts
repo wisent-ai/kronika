@@ -47,14 +47,14 @@ Options:
   --state <path>         Sync state file inside the repository (default: kronika.sync-state.json)
   --dry-run              Sync: report and audit, but write no file and no state
   --commit               Sync: commit rewritten documents and the state file
-  --push                 Sync: push the sync commit
+  --push                 Sync: push the sync commit (requires --commit)
   --replace              Init: replace a conflicting existing sync manifest
   --advance              Onboarding: move to the next screen
   --skip                 Onboarding: dismiss the journey
   --reset                Onboarding: replay the journey from its first screen
   --status               Onboarding: report an existing attempt without starting one
-  --json                 Print the result as a JSON document for a machine; without it every
-                         command prints the same result as text for a person
+  --json                 Print command results as JSON instead of text; not
+                         accepted by gui, which prints its session URL
   -h, --help             Show this help
 
 Brama environment:
@@ -72,6 +72,7 @@ Check exits non-zero when it reports a documentation blocker.
 Sync's first run for a document records a baseline and generates nothing;
 every later run audits only documents whose declared sources changed, and
 exits non-zero when any document failed to reconcile.
+Options belonging to another command are usage errors, never ignored.
 Onboarding needs no Brama route: it completes when kronika init durably
 adopts an existing documentation workspace. The gui command binds only
 127.0.0.1, prints its session URL, and never opens a browser.`;

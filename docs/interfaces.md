@@ -4,9 +4,33 @@
 ## Primary interfaces
 
 A command line Kronika cannot read — an unknown command or option, a missing
-or invalid flag value — prints the refusal and the help on stderr and exits
-`2`. Exit status `1` is reserved for a well-formed command that failed or
-found a blocker.
+or invalid flag value, or `check` without its required `--base` — prints the
+refusal and the help on stderr and exits `2`, before resolving credentials.
+Exit status `1` is reserved for a well-formed command that failed or found a blocker.
+Value-taking options reject blank values and a following option token instead
+of consuming that option as a path, ref, model or instruction. For example,
+`check --base --json` refuses `--base` as usage before any model or Git work.
+Options are accepted only by commands that consume them: `check --apply`,
+`sources --model`, `gui --json` and `onboarding --repo` are usage refusals,
+not silently ignored requests. `sync --push` requires `--commit`; otherwise
+there would be no sync commit to push.
+
+`node tests/cli/refusals.mjs` invokes the actual installed CLI for missing or
+blank operands, option ownership, push without commit, and competing or
+repeated onboarding actions, then checks successful command help. Declare
+`KRONIKA_TEST_CLI_BIN`, `KRONIKA_TEST_SOURCE_REVISION`,
+`KRONIKA_TEST_SUCCESS_EXIT`, `KRONIKA_TEST_USAGE_EXIT` and
+`KRONIKA_TEST_OPERATIONAL_EXIT` using the documented exit contract above.
+Usage refusals create no onboarding state. The runner then starts real local
+onboarding, damages only its retained state, requires named parse/field refusals
+without rewriting bytes, restores the original and checks identity-preserving
+recovery. It also imports real Markdown while onboarding state is damaged,
+requires a successful retained project plus the separate bookkeeping cause,
+and repeats the import after restoring state without changing accepted bytes.
+Optional control-plane configuration is absent. Source revision, binary digest,
+commands, outputs and exit statuses remain in
+`.build/cli-refusals/<run>/report.json`; only run-owned state is removed.
+This journey qualifies CLI refusals, not successful model work or GUI rendering.
 
 ### Adopt existing documents into the project manifest
 
@@ -26,6 +50,13 @@ is the explicit overwrite for a conflicting manifest. Symbolic links,
 non-Markdown file selections, missing paths, and paths outside the repository
 are rejected. Existing documents are never copied, generated, or edited.
 
+Successful import and onboarding bookkeeping have separate outcomes. CLI JSON
+and text include `onboarding.completed` and, on bookkeeping failure,
+`onboarding.error` with the original cause. A failed onboarding read does not
+undo an accepted project or change its successful exit status. Correct the
+retained-state problem and repeat `init`; an unchanged accepted project can
+still record first success without rewriting its manifest.
+
 ### Adopt existing documents through the graphical importer
 
 ```bash
@@ -40,6 +71,11 @@ conflicting, and rejected paths distinct; success is followed by a readback of
 the actual manifest and every accepted document/source declaration. See the
 [graphical importer contract](https://kronika.wisent.com/docs/gui/).
 
+The import result's **Onboarding** row shows completion or the same bookkeeping
+cause as the CLI. Its Imported/Unchanged badge continues to describe the actual
+project mutation, not onboarding delivery. Conflicting and rejected imports
+do not record first success.
+
 ### Inspect sources
 
 ```bash
@@ -52,7 +88,9 @@ kronika sources \
 
 Automatic discovery uses
 `git ls-files --cached --others --exclude-standard`, then a bounded recursive
-scan when the path is not a Git worktree.
+scan when the path is not a Git worktree. Inside a worktree, a `git ls-files`
+that fails stops discovery with git's own message; the worktree is never
+scanned in its place, so ignored files never become sources.
 
 
 ### Check one exact change
@@ -67,7 +105,18 @@ kronika check \
 
 The base and head are resolved to commit SHAs before the model call. Kronika
 refuses an unreadable diff, or one larger than a stated `--max-diff-bytes`,
-rather than auditing truncated evidence.
+rather than auditing truncated evidence. A ref git cannot resolve and a diff
+git cannot produce are refused with what git said on stderr
+(`Git commit cannot be resolved: <ref>: fatal: Needed a single revision`).
+The model answers the check by one required call of the function
+`documentation_check`, whose parameters are the verdict as a strict JSON
+Schema (`passed`, `summary`, and `findings` with `severity` `blocker` or
+`warning`, a kebab-case `code`, `document`, `sourcePaths`, `message` and
+`requiredChange`); its prose is never read. An answer without exactly that
+call, arguments that are not JSON, a field outside that shape, or `passed`
+contradicting the blocker findings is refused with Brama's body or the
+field that failed. A credentials file that is not JSON is refused with the
+parser's reason beside its path.
 The JSON result contains the resolved SHAs, changed paths, summary, warnings,
 and blocker findings. Exit status `1` means at least one blocker.
 
@@ -158,6 +207,27 @@ only after the canonical sync manifest is atomically written or an identical
 manifest is accepted (`documentation_workspace_initialized`). Progress is one
 local file under `${XDG_STATE_HOME:-~/.local/state}/kronika/onboarding.json`;
 `--skip` dismisses the journey and `--reset` replays it.
+Only one action may be named. Combining or repeating `--advance`, `--skip`,
+`--reset` or `--status` is a usage refusal naming both options, before any
+journey state is read or changed. Argument ordering cannot turn a status
+request into a reset.
+
+Only an absent state file starts fresh. Read and JSON failures name the state
+path and actual cause; unsupported schema and malformed required
+`installation_id`, `pending_events`, `evidence` or `meta` fields refuse instead
+of rotating the identity or replacing retained data. Both CLI and graphical
+journey operations use this same store.
+
+A control plane (`STADO_INTEGRATION_API_URL` with
+`KRONIKA_STADO_INTEGRATION_TOKEN`) may serve a newer version of the journey.
+When it cannot be used the walkthrough still runs — from the bundle cached in
+the state file, else the shipped one — but never silently: each read the run
+could not make is listed with its cause as `controlPlaneFailures` in
+`--json`, as `Control plane: …` lines in the text view, and under
+"Onboarding control plane" in the graphical import result. That covers the
+bundle read or its validation, the cached bundle, the remote state of a
+resumed attempt, the experiment assignment, and an event the control plane
+did not take (it stays queued, and the line says how many are pending).
 
 ### Brama configuration
 
@@ -185,9 +255,12 @@ an empty field is refused with the variable and the cause.
 Without Brama, `BRAMA_URL` names any OpenAI-compatible provider and
 `BRAMA_API_KEY_ROLE` its key; with `WISENT_APP_AGENT_ID` unset the requests go
 unsigned. Without Stado, `KRONIKA_CREDENTIALS_FILE` names an owner-only
-(mode 600) JSON file of role → field → value, and every `_ROLE` is answered from
-it instead of `stado credentials get`; a file other users can read is refused,
-and a missing `stado` executable is answered with the name of this variable.
+JSON file of role → field → value, and every `_ROLE` is answered from it
+instead of `stado credentials get`. The opened descriptor must be a regular
+file owned by the caller with no group or other access before any secret is
+read from that same descriptor. A present blank path refuses instead of
+selecting Stado. File refusals retain the declaration, path and actual cause;
+a missing `stado` executable names this standalone alternative.
 
 ## Library API
 
@@ -220,4 +293,9 @@ const result = await writeDocumentation({
 
 process.stdout.write(result.content);
 ```
+
+`BramaClient` is one `CompletionClient`: `complete` returns free text (written
+documentation), `answer` the parsed arguments of one required call of the
+`AnswerFunction` given, which is how `checkDocumentation` asks its verdict
+(`DOCUMENTATION_CHECK`); any answer without exactly that call is refused.
 

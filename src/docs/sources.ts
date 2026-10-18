@@ -5,7 +5,7 @@ import {
   readdirSync,
   statSync,
 } from "node:fs";
-import { basename, extname, relative, resolve, sep } from "node:path";
+import { basename, dirname, extname, relative, resolve, sep } from "node:path";
 
 import type {
   SkippedSource,
@@ -125,22 +125,54 @@ const walkDirectory = (directory: string, paths: string[]): void => {
   }
 };
 
+/** Whether `directory` or one of its parents holds a `.git` entry. */
+const insideGitWorkTree = (directory: string): boolean => {
+  let current = directory;
+  for (;;) {
+    try {
+      lstatSync(resolve(current, ".git"));
+      return true;
+    } catch (error) {
+      const cause = error as NodeJS.ErrnoException;
+      if (cause.code !== "ENOENT") {
+        throw new Error(`Cannot read ${resolve(current, ".git")}: ${cause.message}`);
+      }
+    }
+    const parent = dirname(current);
+    if (parent === current) return false;
+    current = parent;
+  }
+};
+
+/**
+ * The files of `repo`: what git tracks or would track for a work tree, every
+ * file for a plain directory. A git failure inside a work tree used to fall
+ * back to walking the whole tree, so git-ignored files (local env files,
+ * build output) became sources and git's reason was discarded; it now fails
+ * with git's own message.
+ */
 const repositoryPaths = (repo: string): string[] => {
-  try {
-    const output = execFileSync(
-      "git",
-      ["-C", repo, "ls-files", "--cached", "--others", "--exclude-standard", "-z"],
-      { encoding: "utf8", stdio: ["ignore", "pipe", "ignore"] },
-    );
-    return output
-      .split("\0")
-      .filter(Boolean)
-      .map((path) => resolve(repo, path));
-  } catch {
+  if (!insideGitWorkTree(repo)) {
     const paths: string[] = [];
     walkDirectory(repo, paths);
     return paths;
   }
+  let output: string;
+  try {
+    output = execFileSync(
+      "git",
+      ["-C", repo, "ls-files", "--cached", "--others", "--exclude-standard", "-z"],
+      { encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] },
+    );
+  } catch (error) {
+    const cause = error as NodeJS.ErrnoException & { stderr?: string };
+    const detail = cause.stderr ? String(cause.stderr).trim() : cause.message;
+    throw new Error(`git cannot list the files of ${repo}: ${detail}`);
+  }
+  return output
+    .split("\0")
+    .filter(Boolean)
+    .map((path) => resolve(repo, path));
 };
 
 const selectedPaths = (repo: string, selections: string[]): string[] => {
@@ -154,8 +186,10 @@ const selectedPaths = (repo: string, selections: string[]): string[] => {
     let metadata;
     try {
       metadata = lstatSync(candidate);
-    } catch {
-      throw new Error(`Source does not exist: ${selection}`);
+    } catch (error) {
+      const cause = error as NodeJS.ErrnoException;
+      if (cause.code === "ENOENT") throw new Error(`Source does not exist: ${selection}`);
+      throw new Error(`Source cannot be inspected: ${selection}: ${cause.message}`);
     }
     if (metadata.isSymbolicLink()) {
       throw new Error(`Symbolic-link sources are not allowed: ${selection}`);

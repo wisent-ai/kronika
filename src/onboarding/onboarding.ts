@@ -17,30 +17,44 @@ import {
   JOURNEY_VERSION,
   PRODUCT_ID,
 } from "./journey/shapes.js";
-import type { Bundle, OnboardingView, Progress, Scalar, Screen, State } from "./journey/shapes.js";
+import type { Bundle, OnboardingView as JourneyView, Progress, Scalar, Screen, State } from "./journey/shapes.js";
 import { canonicalFallback, FALLBACK_DEFINITION, isRecord, sha256, validateBundle } from "./journey/bundle.js";
 import { loadState, saveState, StadoTransport } from "./journey/store.js";
 import { OnboardingSession } from "./journey/session.js";
 import { newProgress } from "./journey/next.js";
 
-
 import type { OnboardingAction } from "./journey/shapes.js";
 
-export type { OnboardingAction, OnboardingView } from "./journey/shapes.js";
+export type { OnboardingAction } from "./journey/shapes.js";
 
-const openSession = async (client: string, start: boolean): Promise<OnboardingSession | null> => {
+/**
+ * The view of the journey plus every control-plane read this run could not
+ * make, each with its cause. The shipped journey still runs offline, but a
+ * fallback, a lost remote state or a missing assignment is never silent.
+ */
+export type OnboardingView = JourneyView & { controlPlaneFailures: string[] };
+
+type Opened = { session: OnboardingSession | null; failures: string[] };
+
+const causeOf = (error: unknown): string => error instanceof Error ? error.message : String(error);
+
+const openSession = async (client: string, start: boolean): Promise<Opened> => {
   const state = await loadState();
   const subjectHash = sha256(`${PRODUCT_ID}:${state.installation_id}`);
   const transport = new StadoTransport(client);
+  const failures: string[] = [];
   let bundle: Bundle;
   try {
     bundle = validateBundle(await transport.readBundle());
     state.bundle = bundle;
-  } catch {
+  } catch (error) {
+    failures.push(`the control plane's journey bundle could not be used: ${causeOf(error)}`);
     try {
       bundle = validateBundle(state.bundle);
-    } catch {
+      failures.push("the journey runs from the bundle cached in the local state");
+    } catch (cachedError) {
       bundle = canonicalFallback();
+      failures.push(`the cached journey bundle could not be used (${causeOf(cachedError)}); the shipped journey runs`);
     }
   }
   // A persisted attempt is resumed only when it still belongs to this journey
@@ -51,7 +65,7 @@ const openSession = async (client: string, start: boolean): Promise<OnboardingSe
     && persisted.subject_hash === subjectHash && typeof persisted.attempt_id === "string"
     && bundle.definition.screens.some((screen) => screen.screen_id === persisted.current_screen_id)
     && Array.isArray(persisted.completed_screen_ids) && Array.isArray(persisted.answers);
-  if (!start && !existing) return null;
+  if (!start && !existing) return { session: null, failures };
   const revision = new Date().toISOString();
   if (!existing) {
     state.progress = newProgress(bundle, subjectHash, revision);
@@ -63,8 +77,9 @@ const openSession = async (client: string, start: boolean): Promise<OnboardingSe
   if (existing) {
     try {
       await transport.readRemoteState(session.progress);
-    } catch {
+    } catch (error) {
       // Local progress stays authoritative when the control plane is absent.
+      failures.push(`the remote state of attempt ${session.progress.attempt_id} could not be read: ${causeOf(error)}`);
     }
   }
   const experiment = bundle.definition.experiment_contract;
@@ -77,14 +92,17 @@ const openSession = async (client: string, start: boolean): Promise<OnboardingSe
           : experiment.experiment_id ?? "";
         if (typeof assignment.variant === "string") session.progress.variant_id = assignment.variant;
         await session.save();
+      } else {
+        failures.push(`the experiment assignment answered ${JSON.stringify(assignment)}, which is not an assignment`);
       }
-    } catch {
+    } catch (error) {
       // The canonical journey is usable without an experiment assignment.
+      failures.push(`no experiment assignment was received: ${causeOf(error)}`);
     }
   }
   if (!existing) await session.emit([session.event("onboarding_started", revision)]);
   else await session.flush();
-  return session;
+  return { session, failures };
 };
 
 const stringField = (screen: Screen, key: string, fallback: string): string => {
@@ -93,7 +111,7 @@ const stringField = (screen: Screen, key: string, fallback: string): string => {
   return typeof value === "string" ? value : fallback;
 };
 
-const view = (session: OnboardingSession): OnboardingView => {
+const view = (session: OnboardingSession, failures: string[]): OnboardingView => {
   const screen = session.screen;
   const screens = session.bundle.definition.screens;
   const command = stringField(screen, "command", "");
@@ -114,6 +132,8 @@ const view = (session: OnboardingSession): OnboardingView => {
     ...(result ? { result } : {}),
     completedScreenIds: [...session.progress.completed_screen_ids],
     firstSuccessFact: session.bundle.definition.first_success_fact,
+    // The last delivery of this run decides: an event that stays queued says why.
+    controlPlaneFailures: session.deliveryFailure ? [...failures, session.deliveryFailure] : failures,
   };
 };
 
@@ -125,7 +145,7 @@ export const runOnboardingAction = async (
   action: OnboardingAction = "show",
   { client = "cli" }: { client?: string } = {},
 ): Promise<OnboardingView> => {
-  const session = await openSession(client, action !== "status");
+  const { session, failures } = await openSession(client, action !== "status");
   if (!session) {
     const entry = FALLBACK_DEFINITION.screens.find(
       (screen) => screen.screen_id === FALLBACK_DEFINITION.entry_screen_id,
@@ -145,6 +165,7 @@ export const runOnboardingAction = async (
       actions: ["kronika onboarding"],
       completedScreenIds: [],
       firstSuccessFact: FIRST_SUCCESS_FACT,
+      controlPlaneFailures: failures,
     };
   }
   const revision = new Date().toISOString();
@@ -152,13 +173,13 @@ export const runOnboardingAction = async (
   else if (action === "skip") await session.skip(revision);
   else if (action === "advance") await session.advance(revision);
   if (action !== "status" && action !== "skip") await session.expose(revision);
-  return view(session);
+  return view(session, failures);
 };
 
 /**
  * Record the first real setup result: existing documentation accepted into a
- * durable Kronika project manifest. Onboarding bookkeeping must never turn a
- * successful import into a failure, so every error is swallowed.
+ * durable Kronika project manifest. Keep import success separate from the
+ * onboarding result while retaining any bookkeeping failure for the caller.
  */
 export const recordWorkspaceInitialized = async (
   {
@@ -166,18 +187,20 @@ export const recordWorkspaceInitialized = async (
     documentCount,
     manifestPath,
   }: { client?: string; documentCount?: number; manifestPath?: string } = {},
-): Promise<boolean> => {
+): Promise<{ completed: boolean; error?: string; controlPlaneFailures?: string[] }> => {
   try {
-    const session = await openSession(client, false);
-    if (!session || session.progress.status !== "in_progress") return false;
-    return await session.observeWorkspaceInitialized(new Date().toISOString(), {
+    const { session, failures } = await openSession(client, false);
+    if (!session || session.progress.status !== "in_progress") return { completed: false, controlPlaneFailures: failures };
+    const completed = await session.observeWorkspaceInitialized(new Date().toISOString(), {
       first_success_fact: FIRST_SUCCESS_FACT,
       command: "kronika init",
       document_count: documentCount ?? null,
       manifest_path: manifestPath ?? null,
     });
-  } catch {
-    return false;
+    if (session.deliveryFailure) failures.push(session.deliveryFailure);
+    return { completed, controlPlaneFailures: failures };
+  } catch (error) {
+    return { completed: false, error: error instanceof Error ? error.message : String(error) };
   }
 };
 
@@ -190,6 +213,7 @@ export const renderOnboardingView = (result: OnboardingView): string => [
   "",
   ...(result.command ? [`Run: ${result.command}`, ...(result.result ? [`Expect: ${result.result}`] : []), ""] : []),
   `Status: ${result.status}`,
+  ...result.controlPlaneFailures.map((failure) => `Control plane: ${failure}`),
   ...(result.status === "in_progress" && !result.command
     ? ["Next: kronika onboarding --advance"]
     : []),

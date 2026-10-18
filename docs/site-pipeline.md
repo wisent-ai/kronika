@@ -90,6 +90,14 @@ was not given fails that validator by name. Other
 validators check evidence, structure and coverage mechanically. Publication
 follows the consuming site's CI.
 
+`node tests/cli/refusals.mjs` also qualifies the owning `kronika-site` entry:
+help succeeds without sources, while unknown options, missing option values
+and missing required sources return a named usage report before pipeline work.
+The harness records the entry-point digest, argv, complete output and exit
+status alongside its declared source revision. It uses the same source and
+exit-status inputs as the main CLI refusal journey; it does not restore the
+retired `docs-cli` executable or contact a model for these argument cases.
+
 The selected address must be an absolute HTTP(S) base URL without embedded
 credentials, a query or a fragment. A present but empty or invalid `BRAMA_URL`
 is refused by name; it never selects the Stado marker instead. The marker is

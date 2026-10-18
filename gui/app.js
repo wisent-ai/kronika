@@ -114,6 +114,17 @@ const renderResult = ({ result, project }) => {
   clear(resultMeta);
   appendDefinition(resultMeta, "Repository", result.repo);
   appendDefinition(resultMeta, "Manifest", result.manifestPath);
+  if (result.onboarding) {
+    appendDefinition(resultMeta, "Onboarding", result.onboarding.error
+      ? `Not recorded: ${result.onboarding.error}`
+      : result.onboarding.completed ? "Completed" : "No completion recorded");
+    // Absent only when the record itself failed, which the line above says.
+    if (Array.isArray(result.onboarding.controlPlaneFailures)) {
+      for (const failure of result.onboarding.controlPlaneFailures) {
+        appendDefinition(resultMeta, "Onboarding control plane", failure);
+      }
+    }
+  }
   clear(outcomeGroups);
   appendPathGroup("Imported", result.imported, "success");
   appendPathGroup("Unchanged", result.unchanged, "quiet");
@@ -176,7 +187,7 @@ form.addEventListener("submit", async (event) => {
       body: JSON.stringify(payload),
     });
     renderResult(outcome);
-    formStatus.textContent = outcome.result.status === "imported" || outcome.result.status === "unchanged"
+    formStatus.textContent = outcome.result.accepted
       ? "Project accepted."
       : "Project not changed; review the result.";
   } catch (error) {

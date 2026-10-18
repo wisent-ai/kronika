@@ -7,6 +7,8 @@ import { fileURLToPath } from "node:url";
 
 import { initializeDocumentationWorkspace } from "./sync/project.js";
 import { loadSyncManifest, type SyncManifest } from "./sync/sync.js";
+import { SyncFileReadError } from "./sync/state.js";
+import { recordWorkspaceInitialized } from "./onboarding/onboarding.js";
 
 const LOOPBACK_HOST = "127.0.0.1";
 // One import request carries at most 64 KiB. How many paths it names and how long each is are
@@ -181,8 +183,9 @@ const serveAsset = async (response: ServerResponse, path: string): Promise<void>
 const retainedProject = (manifestPath: string): SyncManifest | null => {
   try {
     return loadSyncManifest(manifestPath);
-  } catch {
-    return null;
+  } catch (error) {
+    if (error instanceof SyncFileReadError && error.code === "ENOENT") return null;
+    throw error;
   }
 };
 
@@ -229,11 +232,18 @@ export const startKronikaGui = async (options: GuiServerOptions): Promise<GuiSer
           ...(input.instruction ? { instruction: input.instruction } : {}),
           replace: input.replace,
         });
-        const project = result.status === "imported" || result.status === "unchanged"
+        const project = result.accepted
           ? loadSyncManifest(result.manifestPath)
           : retainedProject(result.manifestPath);
-        const statusCode = result.status === "conflicting" ? HTTP_CONFLICT : result.status === "rejected" ? HTTP_UNPROCESSABLE : HTTP_OK;
-        sendJson(response, statusCode, { result, project });
+        const statusCode = result.conflicting.length ? HTTP_CONFLICT : result.rejected.length ? HTTP_UNPROCESSABLE : HTTP_OK;
+        const onboarding = statusCode === HTTP_OK
+          ? await recordWorkspaceInitialized({
+            client: "gui",
+            documentCount: result.imported.length + result.unchanged.length,
+            manifestPath: result.manifestPath,
+          })
+          : undefined;
+        sendJson(response, statusCode, { result: { ...result, ...(onboarding ? { onboarding } : {}) }, project });
         return;
       }
       throw new HttpError(HTTP_NOT_FOUND, "not found");

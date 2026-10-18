@@ -15,8 +15,26 @@ export type CompletionResult = {
   model?: string;
 };
 
+/** The function a model answers by calling: its parameters are a strict JSON Schema. */
+export type AnswerFunction = {
+  name: string;
+  description: string;
+  parameters: Record<string, unknown>;
+};
+
+export type AnswerRequest = CompletionRequest & { answer: AnswerFunction };
+
+/** The arguments of the one call the model made, parsed, and the model that made it. */
+export type AnswerResult = {
+  arguments: unknown;
+  model?: string;
+};
+
 export interface CompletionClient {
+  /** Free text: documentation a person reads. */
   complete(request: CompletionRequest): Promise<CompletionResult>;
+  /** A decision: the arguments of one required call of `request.answer`. */
+  answer(request: AnswerRequest): Promise<AnswerResult>;
 }
 
 export type SourceDocument = {

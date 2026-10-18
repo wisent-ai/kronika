@@ -62,15 +62,16 @@ const main = async (): Promise<void> => {
       ...(args.instruction ? { instruction: args.instruction } : {}),
       replace: args.replace,
     });
-    printAnswer(result, args.json);
-    if (result.status === "imported" || result.status === "unchanged") {
-      await recordWorkspaceInitialized({
+    if (result.accepted) {
+      const onboarding = await recordWorkspaceInitialized({
         client: "cli",
         documentCount: result.imported.length + result.unchanged.length,
         manifestPath: result.manifestPath,
       });
+      printAnswer({ ...result, onboarding }, args.json);
       return;
     }
+    printAnswer(result, args.json);
     process.exitCode = 1;
     return;
   }
@@ -97,9 +98,6 @@ const main = async (): Promise<void> => {
     return;
   }
 
-  if (args.command === "check" && !args.base) {
-    throw new Error("check requires --base <ref>");
-  }
 
   const bramaUrl = process.env.BRAMA_URL || process.env.MODEL_ROUTER_URL;
   // Only role references travel in the environment; the secrets themselves

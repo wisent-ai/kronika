@@ -6,7 +6,7 @@
 // limit.
 
 import { execFileSync } from "node:child_process";
-import { existsSync, readFileSync } from "node:fs";
+import { readFileSync } from "node:fs";
 
 import type { DocumentationFinding } from "../docs/model/types.js";
 
@@ -19,16 +19,34 @@ export const git = (repo: string, args: string[]): string => execFileSync(
   { encoding: "utf8", stdio: ["ignore", "pipe", "pipe"], maxBuffer: 16 * 1024 * 1024 },
 ).trim();
 
-export const loadSyncManifest = (path: string): SyncManifest => {
-  if (!existsSync(path)) {
-    throw new Error(`Sync manifest is missing: ${path}. Declare the maintained documents first.`);
+export class SyncFileReadError extends Error {
+  readonly code: string | undefined;
+
+  constructor(path: string, what: string, cause: unknown) {
+    super(`${what} cannot be read: ${path}: ${cause instanceof Error ? cause.message : String(cause)}`);
+    this.code = (cause as NodeJS.ErrnoException | undefined)?.code;
   }
-  let parsed: unknown;
+}
+
+/** The JSON at `path`. A file that cannot be read and one that does not parse
+ * are refused apart, each with its cause: both used to read "is not valid
+ * JSON", sending the operator to fix a syntax error in a file he could not open. */
+const readJson = (path: string, what: string, remedy: string): unknown => {
+  let text: string;
   try {
-    parsed = JSON.parse(readFileSync(path, "utf8"));
-  } catch {
-    throw new Error(`Sync manifest is not valid JSON: ${path}`);
+    text = readFileSync(path, "utf8");
+  } catch (error) {
+    throw new SyncFileReadError(path, what, error);
   }
+  try {
+    return JSON.parse(text);
+  } catch (error) {
+    throw new Error(`${what} is not valid JSON: ${path}: ${error instanceof Error ? error.message : String(error)}.${remedy}`);
+  }
+};
+
+export const loadSyncManifest = (path: string): SyncManifest => {
+  const parsed = readJson(path, "Sync manifest", "");
   const manifest = parsed as SyncManifest;
   if (manifest.schemaVersion !== 1) {
     throw new Error(`Unsupported sync manifest schemaVersion in ${path}`);
@@ -48,14 +66,12 @@ export const loadSyncManifest = (path: string): SyncManifest => {
 };
 
 export const loadSyncState = (path: string): SyncState => {
-  if (!existsSync(path)) {
-    return { schemaVersion: 1, documents: {} };
-  }
   let parsed: unknown;
   try {
-    parsed = JSON.parse(readFileSync(path, "utf8"));
-  } catch {
-    throw new Error(`Sync state is not valid JSON: ${path}. Fix or delete it to re-baseline.`);
+    parsed = readJson(path, "Sync state", " Fix or restore the saved baselines before continuing.");
+  } catch (error) {
+    if (!(error instanceof SyncFileReadError) || error.code !== "ENOENT") throw error;
+    return { schemaVersion: 1, documents: {} };
   }
   const state = parsed as SyncState;
   if (state.schemaVersion !== 1) {

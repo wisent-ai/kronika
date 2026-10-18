@@ -2,6 +2,7 @@ export { BramaClient, signedHeaders } from "./docs/model/brama.js";
 export {
   buildDocumentationCheckMessages,
   checkDocumentation,
+  DOCUMENTATION_CHECK,
   parseDocumentationCheck,
 } from "./docs/checker.js";
 export { buildDocumentationMessages } from "./docs/prompt.js";
@@ -25,6 +26,9 @@ export type {
   SyncState,
 } from "./sync/sync.js";
 export type {
+  AnswerFunction,
+  AnswerRequest,
+  AnswerResult,
   ChatMessage,
   CheckDocumentationOptions,
   CheckDocumentationResult,

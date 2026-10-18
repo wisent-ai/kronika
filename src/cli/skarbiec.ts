@@ -8,7 +8,7 @@
 // role -> field -> value that answers the reference instead.
 
 import { execFileSync } from "node:child_process";
-import { readFileSync, statSync } from "node:fs";
+import { closeSync, constants, fstatSync, openSync, readFileSync } from "node:fs";
 
 /** The standard error a failed child process carried, when it carried any. */
 const childStderr = (error: unknown): string => {
@@ -27,7 +27,12 @@ export const readCredential = (reference: string, source: string): string => {
   const role = reference.slice(0, separator);
   const field = reference.slice(separator + 1);
   const credentialsFile = process.env.KRONIKA_CREDENTIALS_FILE;
-  if (credentialsFile) return localCredential(credentialsFile, role, field, source);
+  if (credentialsFile !== undefined) {
+    if (!credentialsFile.trim()) {
+      throw new Error(`${source}: KRONIKA_CREDENTIALS_FILE is present but blank; no credential source was selected`);
+    }
+    return localCredential(credentialsFile, role, field, source);
+  }
   const binary = process.env.STADO_BIN || "stado";
   let value: string;
   try {
@@ -49,22 +54,35 @@ export const readCredential = (reference: string, source: string): string => {
 
 /** `role`'s `field` from the owner-only credentials file; a file other users can read is refused. */
 const localCredential = (file: string, role: string, field: string, source: string): string => {
-  let mode: number;
+  let descriptor: number | undefined;
   let text: string;
   try {
-    mode = statSync(file).mode;
-    text = readFileSync(file, "utf8");
+    descriptor = openSync(file, constants.O_RDONLY | constants.O_NONBLOCK);
+    const metadata = fstatSync(descriptor);
+    if (!metadata.isFile()) {
+      throw new Error("the opened credential source is not a regular file");
+    }
+    if (typeof process.geteuid !== "function") {
+      throw new Error("this platform cannot establish the credential file's owner");
+    }
+    const caller = process.geteuid();
+    if (metadata.uid !== caller) {
+      throw new Error(`the opened file belongs to uid ${metadata.uid}, not effective caller uid ${caller}`);
+    }
+    if (metadata.mode & (constants.S_IRWXG | constants.S_IRWXO)) {
+      throw new Error(`the opened file permits group or other access (mode ${metadata.mode})`);
+    }
+    text = readFileSync(descriptor, "utf8");
   } catch (error) {
     throw new Error(`${source}: KRONIKA_CREDENTIALS_FILE ${file} cannot be read: ${error instanceof Error ? error.message : String(error)}`);
-  }
-  if ((mode & 0o077) !== 0) {
-    throw new Error(`${source}: KRONIKA_CREDENTIALS_FILE ${file} must be readable by its owner only (mode ${(mode & 0o777).toString(8)})`);
+  } finally {
+    if (descriptor !== undefined) closeSync(descriptor);
   }
   let roles: unknown;
   try {
     roles = JSON.parse(text);
-  } catch {
-    throw new Error(`${source}: KRONIKA_CREDENTIALS_FILE ${file} is not a JSON object of role -> field -> value`);
+  } catch (error) {
+    throw new Error(`${source}: KRONIKA_CREDENTIALS_FILE ${file} is not a JSON object of role -> field -> value: ${error instanceof Error ? error.message : String(error)}`);
   }
   const fields = roles && typeof roles === "object" ? (roles as Record<string, unknown>)[role] : undefined;
   const value = fields && typeof fields === "object" ? (fields as Record<string, unknown>)[field] : undefined;
