@@ -26,9 +26,9 @@
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "prepare": "npm run build",
-    "docs:detect": "node pipeline/src/detect.mjs",
-    "docs:validate": "node pipeline/src/validate.mjs",
-    "docs:emit": "node pipeline/src/emit.mjs"
+    "docs:detect": "node pipeline/src/stages/detect.mjs",
+    "docs:validate": "node pipeline/src/stages/validate.mjs",
+    "docs:emit": "node pipeline/src/stages/emit.mjs"
   },
   "devDependencies": {
     "@types/node": "^22.15.0",
