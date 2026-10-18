@@ -1,15 +1,19 @@
 #!/usr/bin/env node
 // Pipeline orchestrator: detect -> (author | load plan) -> validate -> judge
 // -> emit. Stops at the first failing stage; prints one final report (JSON,
-// or --text). Exit codes: 0 all green, 1 stage failed, 2 usage error, 69
-// model infrastructure down.
+// or --text). Exit statuses: success when all are green, EXIT_STAGE_FAILED
+// when a stage failed, EXIT_USAGE on a usage error, EXIT_BRAMA_DOWN when the
+// model infrastructure is down.
 import { mkdirSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { detect } from "./stages/detect.mjs";
 import { runValidators } from "./stages/validate.mjs";
 import { authorPlan } from "./stages/author.mjs";
 import { emitPlan } from "./stages/emit.mjs";
-import { expandPath, readJson, printReport, parseCommand, isMain, resolveEndpoint, InfraDownError, EndpointNotConfiguredError } from "./lib.mjs";
+import {
+  expandPath, readJson, printReport, parseCommand, isMain, resolveEndpoint, InfraDownError, EndpointNotConfiguredError,
+  EXIT_STAGE_FAILED, EXIT_BRAMA_DOWN,
+} from "./lib.mjs";
 
 const USAGE = "kronika-site <productRepo> --sources <file> [--plan <file>] [--out <dir>] [--model <selector>] [--text]";
 
@@ -19,18 +23,19 @@ async function main() {
     plan: { type: "string" },
     out: { type: "string" },
     model: { type: "string", default: "default" },
-  }, { positionals: 1, required: ["sources"] });
+  }, { positionals: ["productRepo"], required: ["sources"] });
 
   const stages = [];
-  const finish = (ok, code = ok ? 0 : 1) => {
+  const finish = (ok, code) => {
     printReport({ ok, stages });
     process.exit(code);
   };
+  const fail = () => finish(false, EXIT_STAGE_FAILED);
 
   // 1. detect
-  const brief = await detect(positionals[0], values.sources);
+  const brief = await detect(positionals.productRepo, values.sources);
   stages.push({ stage: "detect", ok: brief.ok, brief });
-  if (!brief.ok) finish(false);
+  if (!brief.ok) fail();
 
   // 2. author, or load an existing plan (validation+emission without a model)
   let plan;
@@ -44,33 +49,32 @@ async function main() {
     } catch (e) {
       if (!(e instanceof EndpointNotConfiguredError)) throw e;
       stages.push({ stage: "author", ok: false, error: "not_configured", detail: e.message });
-      finish(false);
+      fail();
     }
-    const sources = readJson(expandPath(values.sources));
     try {
-      const authored = await authorPlan({ brief, sources, repo: brief.repo, model: values.model, endpoint });
-      if (authored.schemaErrors.length > 0) {
+      const authored = await authorPlan({ brief, repo: brief.repo, model: values.model, endpoint });
+      if (authored.schemaErrors.length) {
         stages.push({ stage: "author", ok: false, error: "invalid_plan", schemaErrors: authored.schemaErrors });
-        finish(false);
+        fail();
       }
       plan = authored.plan;
       const planPath = path.resolve("plan.json");
-      writeFileSync(planPath, JSON.stringify(plan, null, 2) + "\n");
+      writeFileSync(planPath, JSON.stringify(plan, null, "  ") + "\n");
       stages.push({ stage: "author", ok: true, mode: "authored", path: planPath, endpoint: endpoint.url });
     } catch (e) {
       if (e instanceof InfraDownError) {
         stages.push({ stage: "author", ok: false, error: "infra_down", detail: e.message, endpoint: e.endpoint, resolvedVia: endpoint.via });
-        finish(false, 69);
+        finish(false, EXIT_BRAMA_DOWN);
       }
       stages.push({ stage: "author", ok: false, error: "author_failed", detail: e.message });
-      finish(false);
+      fail();
     }
   }
 
   // 3. validate
-  const validation = await runValidators({ plan, brief, repo: brief.repo, model: values.model });
+  const validation = await runValidators({ plan, brief, repo: brief.repo });
   stages.push({ stage: "validate", ok: validation.ok, report: validation });
-  if (!validation.ok) finish(false);
+  if (!validation.ok) fail();
 
 
   // 4. emit

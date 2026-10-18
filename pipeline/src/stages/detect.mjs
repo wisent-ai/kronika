@@ -12,16 +12,23 @@
 //   CHANGELOG exists             -> changelog; + migration iff breaking entries
 //   declared limits/quotas exist -> limits
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
-import { expandPath, readJson, printReport, parseCommand, runCommand, isMain } from "../lib.mjs";
+import {
+  expandPath, readJson, printReport, parseCommand, runCommand, isMain, EXIT_STAGE_FAILED,
+} from "../lib.mjs";
 
-function parseCommandList(helpText) {
-  // clap layout: a "Commands:" header, then "  <name>  <description>" lines.
-  const m = helpText.match(/^Commands:\n([\s\S]*?)(?:\n\n|\n[A-Z])/m);
-  if (!m) return [];
+export function parseCommandList(helpText) {
+  // clap layout: a "Commands:" header, then lines indented by two spaces,
+  // "  <name>  <description>".
+  const normalized = helpText.replaceAll("\r\n", "\n");
+  const m = normalized.match(/^Commands:\n(?<body>[\s\S]*?)(?:\n\n|\n[A-Z]|(?![\s\S]))/m);
+  if (!m) throw new Error(`--help has no readable Commands section:\n${helpText}`);
   const names = [];
-  for (const line of m[1].split("\n")) {
-    const t = line.match(/^ {2}([a-z][a-z0-9-]*)\b/);
-    if (t) names.push(t[1]);
+  for (const line of m.groups.body.split("\n")) {
+    const t = line.match(/^  (?<name>[a-z][a-z\d-]*)\b/);
+    if (t) names.push(t.groups.name);
+  }
+  if (!names.length) {
+    throw new Error(`--help Commands section has no readable command names:\n${helpText}`);
   }
   return names;
 }
@@ -49,10 +56,16 @@ export async function detect(productRepo, sourcesFile) {
     const ver = await runCommand(binary, ["--version"], { cwd: repo });
     const help = await runCommand(binary, ["--help"], { cwd: repo });
     if (ver.ok && help.ok) {
-      s.ok = true;
-      s.version = ver.stdout.trim().split("\n")[0].trim().split(/\s+/).pop();
-      s.commands = parseCommandList(help.stdout);
-      requiredKinds.push("quick-start", "cli-reference");
+      try {
+        s.commands = parseCommandList(help.stdout);
+        s.ok = true;
+        const [versionLine] = ver.stdout.trim().split("\n");
+        s.version = versionLine.trim().split(/\s+/).pop();
+        requiredKinds.push("quick-start", "cli-reference");
+      } catch (error) {
+        s.error = error.message;
+        problems.push(`cli: ${binary}: ${s.error}`);
+      }
     } else {
       s.error = ver.ok ? `--help failed: ${help.error}` : `--version failed: ${ver.error}`;
       problems.push(`cli: ${binary}: ${s.error}`);
@@ -62,13 +75,14 @@ export async function detect(productRepo, sourcesFile) {
     surfaces.cli = { declared: false };
   }
 
-  // HTTP route table surface.
+  // HTTP route table surface: a route file's header holds one `//! <METHOD>
+  // <path>` line per route, the method an upper-case HTTP token.
   if (declared.routes) {
     const p = probeFile(repo, declared.routes);
     const s = { declared: true, ...p };
     if (p.ok) {
       const header = readFileSync(p.path, "utf8");
-      s.routes = (header.match(/^\/\/! (GET|PUT|POST|DELETE|PATCH)\b.*$/gm) || []).length;
+      s.routes = Array.from(header.matchAll(/^\/\/! [A-Z]+\b.*$/gm)).length;
       requiredKinds.push("api-reference");
     } else {
       problems.push(`routes: ${p.path}: not readable`);
@@ -116,16 +130,16 @@ export async function detect(productRepo, sourcesFile) {
 
   // Plain evidence documents (author excerpts; not page-set surfaces).
   const docs = {};
-  for (const [name, rel] of Object.entries(declared.docs ?? {})) {
+  for (const [name, rel] of Object.entries({ ...declared.docs })) {
     const p = probeFile(repo, rel);
     docs[name] = p;
     if (!p.ok) problems.push(`docs.${name}: ${p.path}: not readable`);
   }
 
   return {
-    ok: problems.length === 0,
+    ok: !problems.length,
     product,
-    version: surfaces.cli.version ?? "unknown",
+    version: surfaces.cli.version,
     repo,
     surfaces,
     docs,
@@ -138,12 +152,13 @@ async function main() {
   const { values, positionals } = parseCommand(
     "node src/stages/detect.mjs <productRepo> --sources <docs-sources.json> [--out brief.json] [--text]",
     { sources: { type: "string" }, out: { type: "string" } },
-    { positionals: 1, required: ["sources"] },
+    { positionals: ["productRepo"], required: ["sources"] },
   );
-  const brief = await detect(positionals[0], values.sources);
-  if (values.out) writeFileSync(values.out, JSON.stringify(brief, null, 2) + "\n");
+  const brief = await detect(positionals.productRepo, values.sources);
+  if (values.out) writeFileSync(values.out, JSON.stringify(brief, null, "  ") + "\n");
   printReport(brief);
-  process.exit(brief.ok ? 0 : 1);
+  if (!brief.ok) process.exit(EXIT_STAGE_FAILED);
+  process.exit();
 }
 
 if (isMain(import.meta.url)) await main();

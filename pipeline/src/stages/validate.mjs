@@ -4,7 +4,7 @@
 // five pass. Every validator is a defect the operator caught by hand:
 //   claims    — every claim.evidence occurs in its named source
 //   drift     — documented command lines and flags exist in the live --help
-//   terms     — a word used on >=3 pages that Brama judges a product concept
+//   terms     — a word used on multiple pages that Brama judges a product concept
 //               must be declared with a defining page (BRAMA_URL or the
 //               service directory marker; unreachable fails the validator)
 //   structure — the plan validates against the closed schema
@@ -14,22 +14,32 @@
 import { readFileSync, existsSync } from "node:fs";
 import path from "node:path";
 import { validatePlan } from "../schema.mjs";
-import { expandPath, readJson, printReport, parseCommand, runCommand, fetchText, isMain, resolveEndpoint, chatComplete } from "../lib.mjs";
+import {
+  expandPath, readJson, printReport, parseCommand, runCommand, fetchText, isMain, resolveEndpoint, EXIT_STAGE_FAILED,
+} from "../lib.mjs";
+import { validateTerms } from "../validators/terms.mjs";
+import { validateCoverage } from "../validators/coverage.mjs";
+import { parseCommandList } from "./detect.mjs";
 
-/** Visit every block with its JSONPath-ish address and owning page. */
+/**
+ * Visit every block with its JSONPath-ish address and owning page. A plan
+ * missing a list holds no blocks there; the structure validator reports it.
+ */
 export function forEachBlock(plan, fn) {
-  (plan.pages ?? []).forEach((page, pi) => {
-    (page.sections ?? []).forEach((section, si) => {
-      (section.blocks ?? []).forEach((block, bi) => {
+  for (const [pi, page] of Object.entries({ ...plan.pages })) {
+    for (const [si, section] of Object.entries({ ...page.sections })) {
+      for (const [bi, block] of Object.entries({ ...section.blocks })) {
         fn(block, `pages[${pi}].sections[${si}].blocks[${bi}]`, page);
-      });
-    });
-  });
+      }
+    }
+  }
 }
 
+/** The probed CLI binary the brief names, when it exists on this machine. */
 function resolveBinary(brief) {
   const binary = brief?.surfaces?.cli?.binary;
-  return binary && existsSync(binary) ? binary : null;
+  if (binary && existsSync(binary)) return binary;
+  return undefined;
 }
 
 /**
@@ -38,16 +48,15 @@ function resolveBinary(brief) {
  * Returns { ok, args?, error? } for a plan source location string.
  */
 function allowlistCommand(location, product) {
-  const tokens = location.trim().split(/\s+/);
-  if (tokens[0] !== product) {
-    return { ok: false, error: `command must start with the product binary "${product}", got "${tokens[0]}"` };
+  const [head, ...args] = location.trim().split(/\s+/);
+  if (head !== product) {
+    return { ok: false, error: `command must start with the product binary "${product}", got "${head}"` };
   }
-  const args = tokens.slice(1);
   let sawHelpOrVersion = false;
   for (const t of args) {
     if (t === "--help" || t === "--version") { sawHelpOrVersion = true; continue; }
     if (t.startsWith("-")) return { ok: false, error: `flag "${t}" not allowlisted (only --help/--version)` };
-    if (!/^[a-z0-9][a-z0-9_-]*$/.test(t)) return { ok: false, error: `token "${t}" not allowlisted` };
+    if (!/^[a-z\d][a-z\d_-]*$/.test(t)) return { ok: false, error: `token "${t}" not allowlisted` };
   }
   if (!sawHelpOrVersion) return { ok: false, error: "command sources must ask for --help or --version" };
   return { ok: true, args };
@@ -135,31 +144,52 @@ async function validateDrift(plan, brief, repo) {
   forEachBlock(plan, (block, addr, page) => {
     const text = block.type === "code" ? block.code?.code : undefined;
     if (!text) return;
-    const firstLine = text.trim().split("\n")[0].trim();
-    const tokens = firstLine.split(/\s+/);
-    if (tokens[0] !== product) return; // not a product command block
-    checks.push({ addr, page, text, tokens });
+    // Each invocation has its own help context; flags on a later command
+    // cannot be checked against the first command's help.
+    for (const line of text.replace(/\\\r?\n/g, " ").split(/\r?\n/)) {
+      const command = line.trim();
+      const [head, ...words] = command.split(/\s+/);
+      if (head !== product) continue;
+      checks.push({ addr, page, text: command, words });
+    }
   });
 
-  for (const { addr, page, text, tokens } of checks) {
+  for (const { addr, page, text, words } of checks) {
     if (!binary) {
       failures.push({ block: addr, page: page.slug, message: `code documents "${product}" but brief has no probed cli binary` });
       continue;
     }
     const cmdPath = [];
-    for (const t of tokens.slice(1)) {
-      if (/^[a-z0-9][a-z0-9_-]*$/.test(t)) cmdPath.push(t);
-      else break;
+    let help = await helpFor(cmdPath);
+    let unresolved = false;
+    for (const token of words) {
+      if (!help.ok || token.startsWith("-")) break;
+      // A leaf command's following words are operands, not subcommands.
+      if (!/^Commands:\r?$/m.test(help.stdout)) break;
+      const commands = parseCommandList(help.stdout);
+      if (!commands.includes(token)) {
+        failures.push({
+          block: addr,
+          page: page.slug,
+          message: `"${[product, ...cmdPath].join(" ")} --help" does not advertise subcommand ${JSON.stringify(token)}`,
+        });
+        unresolved = true;
+        break;
+      }
+      cmdPath.push(token);
+      help = await helpFor(cmdPath);
     }
+    if (unresolved) continue;
     const usage = [product, ...cmdPath].join(" ");
-    const help = await helpFor(cmdPath);
     if (!help.ok) {
       failures.push({ block: addr, page: page.slug, message: `"${usage}" does not answer --help: ${help.error}` });
       continue;
     }
-    const flags = [...new Set([...text.matchAll(/(^|\s)(--[a-z][a-z0-9-]*)/g)].map((m) => m[2]))];
+    const flagPattern = /(?:^|\s)(?<flag>--[a-z][a-z\d-]*)/g;
+    const flags = [...new Set(Array.from(text.matchAll(flagPattern), (m) => m.groups.flag))];
+    const reportedFlags = new Set(Array.from(help.stdout.matchAll(flagPattern), (m) => m.groups.flag));
     for (const flag of flags) {
-      if (!help.stdout.includes(flag)) {
+      if (!reportedFlags.has(flag)) {
         failures.push({ block: addr, page: page.slug, message: `flag "${flag}" does not appear in "${usage} --help"` });
       }
     }
@@ -167,101 +197,6 @@ async function validateDrift(plan, brief, repo) {
   return failures;
 }
 
-// --- terms ------------------------------------------------------------------
-
-/**
- * Which of `words` name a concept of this product that a reader has to learn,
- * as opposed to ordinary English, asked of a model through Brama. A built-in
- * stopword list decided this before, so every generic word it lacked was
- * demanded as a term and every product word it happened to hold was waved
- * through. Throws when Brama cannot answer or answers outside the words asked.
- */
-async function productConcepts(words, product, { endpoint, model }) {
-  const messages = [
-    {
-      role: "system",
-      content:
-        "You review the documentation of one software product. For each word given, decide whether it names a concept of " +
-        "that product a reader has to learn (a component, command, resource or idea specific to it) or is ordinary " +
-        "English vocabulary. Answer with JSON only: {\"concepts\": [the words that are product concepts]}.",
-    },
-    { role: "user", content: JSON.stringify({ product, words }) },
-  ];
-  const content = await chatComplete({ endpoint: endpoint.url, messages, model });
-  const text = content.trim().replace(/^```(?:json)?\s*/i, "").replace(/```\s*$/, "");
-  const answer = JSON.parse(text.slice(text.indexOf("{"), text.lastIndexOf("}") + 1));
-  if (!Array.isArray(answer?.concepts) || answer.concepts.some((w) => !words.includes(w))) {
-    throw new Error(`brama's term judgement is not a list drawn from the words asked: ${text.slice(0, 400)}`);
-  }
-  return new Set(answer.concepts);
-}
-
-function pageProse(page) {
-  const parts = [page.title ?? "", page.description ?? ""];
-  for (const section of page.sections ?? []) {
-    parts.push(section.title ?? "");
-    for (const block of section.blocks ?? []) {
-      if (block.text) parts.push(block.text);
-      if (block.items) parts.push(...block.items);
-      if (block.callout) parts.push(block.callout.title ?? "", block.callout.text ?? "");
-      if (block.table) {
-        parts.push(block.table.caption ?? "", ...(block.table.columns ?? []));
-        for (const row of block.table.rows ?? []) parts.push(...row);
-      }
-      // code blocks are not rendered prose; drift owns them
-    }
-  }
-  return parts.join("\n").toLowerCase();
-}
-
-async function validateTerms(plan, brief, judge) {
-  const failures = [];
-  const product = (brief?.product ?? plan.product ?? "").toLowerCase();
-  const slugs = new Set((plan.pages ?? []).map((p) => p.slug));
-
-  // Every declared term must be defined on a page that exists.
-  const declaredWords = new Set();
-  for (const t of plan.terms ?? []) {
-    for (const w of t.term.toLowerCase().split(/[^a-z0-9-]+/)) if (w) declaredWords.add(w);
-    if (!slugs.has(t.definedOn)) {
-      failures.push({ term: t.term, message: `definedOn "${t.definedOn}" is not an existing page slug` });
-    }
-  }
-  const covered = (w) =>
-    declaredWords.has(w) || declaredWords.has(`${w}s`) || (w.endsWith("s") && declaredWords.has(w.slice(0, -1)));
-
-  // A word on more than one page that names a product concept must be a
-  // declared term; whether it names one is the model's judgement, for every
-  // such word, short or long.
-  const usage = new Map();
-  for (const page of plan.pages ?? []) {
-    const words = new Set(pageProse(page).match(/[a-z][a-z-]*/g) ?? []);
-    for (const w of words) {
-      if (w === product) continue;
-      if (!usage.has(w)) usage.set(w, []);
-      usage.get(w).push(page.slug);
-    }
-  }
-  const recurring = [...usage].filter(([, pages]) => pages.length > 1).filter(([word]) => !covered(word));
-  if (recurring.length === 0) return failures;
-  let concepts;
-  try {
-    concepts = await productConcepts(recurring.map(([word]) => word), product, judge());
-  } catch (e) {
-    failures.push({ message: `recurring words could not be judged: ${e.message}` });
-    return failures;
-  }
-  for (const [word, pages] of recurring) {
-    if (concepts.has(word)) {
-      failures.push({
-        term: word,
-        pages,
-        message: `"${word}" is used on ${pages.length} pages but is not declared in plan.terms`,
-      });
-    }
-  }
-  return failures;
-}
 
 // --- structure / coverage ------------------------------------------------------
 
@@ -269,42 +204,33 @@ function validateStructure(plan) {
   return validatePlan(plan).map((e) => ({ path: e.path, message: e.message }));
 }
 
-function validateCoverage(plan, brief) {
-  const pages = plan.pages ?? [];
-  const kinds = new Set(pages.map((p) => p.kind));
-  const failures = (brief?.requiredKinds ?? [])
-    .filter((k) => !kinds.has(k))
-    .map((kind) => ({ kind, message: `required page kind "${kind}" is missing from the plan` }));
-  // The binary's own command list, read by detect from `--help`; a command
-  // with no page of its own is a published promise nobody can read about.
-  const commands = brief?.surfaces?.cli?.commands ?? [];
-  const slugs = pages.filter((p) => p.kind === "cli-reference").map((p) => p.slug);
-  for (const command of commands) {
-    if (command === "help") continue;
-    const documented = slugs.some((slug) => slug === `cli/${command}` || slug.startsWith(`cli/${command}/`));
-    if (!documented) {
-      failures.push({ command, message: `command "${command}" is in the binary's --help but no cli-reference page has slug "cli/${command}"` });
-    }
-  }
-  return failures;
-}
 
 // --- runner -------------------------------------------------------------------
 
 /**
- * `endpoint` and `model` are the Brama address and alias the terms judgement
- * asks; without an endpoint it is resolved (BRAMA_URL or the service
- * directory marker) only when there is something to judge.
+ * `endpoint` is the Brama address the terms judgement asks (under Brama's
+ * own decision alias); without one it is resolved (BRAMA_URL or the service
+ * directory marker) only when there is something to judge. A validator that
+ * throws fails with its error as its one failure.
  */
-export async function runValidators({ plan, brief, repo, endpoint, model = "default" }) {
-  const judge = () => ({ endpoint: endpoint ?? resolveEndpoint(), model });
+export async function runValidators({ plan, brief, repo, endpoint }) {
+  const judge = () => ({ endpoint: endpoint ?? resolveEndpoint() });
+  const capture = async (validator, run) => {
+    let failures;
+    try {
+      failures = await run();
+    } catch (error) {
+      failures = [{ message: `${validator} validator failed: ${error instanceof Error ? error.message : String(error)}` }];
+    }
+    return { validator, pass: !failures.length, failures };
+  };
   const validators = [
-    { validator: "claims", failures: await validateClaims(plan, brief, repo) },
-    { validator: "drift", failures: await validateDrift(plan, brief, repo) },
-    { validator: "terms", failures: await validateTerms(plan, brief, judge) },
-    { validator: "structure", failures: validateStructure(plan) },
-    { validator: "coverage", failures: validateCoverage(plan, brief) },
-  ].map((v) => ({ validator: v.validator, pass: v.failures.length === 0, failures: v.failures }));
+    await capture("claims", () => validateClaims(plan, brief, repo)),
+    await capture("drift", () => validateDrift(plan, brief, repo)),
+    await capture("terms", () => validateTerms(plan, brief, judge)),
+    await capture("structure", () => validateStructure(plan)),
+    await capture("coverage", () => validateCoverage(plan, brief, repo, resolveBinary(brief))),
+  ];
   return { ok: validators.every((v) => v.pass), validators };
 }
 
@@ -312,14 +238,15 @@ async function main() {
   const { values } = parseCommand(
     "node src/stages/validate.mjs --plan plan.json --brief brief.json [--repo path] [--text]",
     { plan: { type: "string" }, brief: { type: "string" }, repo: { type: "string" } },
-    { required: "plan brief".split(" ") },
+    { positionals: [], required: "plan brief".split(" ") },
   );
   const plan = readJson(values.plan);
   const brief = readJson(values.brief);
   const repo = expandPath(values.repo ?? brief.repo ?? process.cwd());
   const report = await runValidators({ plan, brief, repo });
   printReport(report);
-  process.exit(report.ok ? 0 : 1);
+  if (!report.ok) process.exit(EXIT_STAGE_FAILED);
+  process.exit();
 }
 
 if (isMain(import.meta.url)) await main();

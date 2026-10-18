@@ -11,24 +11,28 @@
 // per bullet or step, a code block's code between ``` fences, a table's rows
 // as `cell | cell` lines, a callout's text. Import parses that back, replaces
 // the page in the plan, validates the whole plan and writes it only when it
-// is valid. Exit 0 done, 1 the edited page is invalid (nothing is written),
-// 2 a wrong invocation.
+// is valid. Exits successfully when done, EXIT_STAGE_FAILED when the edited
+// page is invalid (nothing is written), EXIT_USAGE on a wrong invocation.
 import { readFileSync, writeFileSync } from "node:fs";
 import { validatePlan } from "../schema.mjs";
-import { printReport, parseCommand, isMain } from "../lib.mjs";
+import { printReport, parseCommand, isMain, EXIT_USAGE, EXIT_STAGE_FAILED } from "../lib.mjs";
 
 const USAGE = "node src/stages/page.mjs export|import --plan plan.json --slug <slug> (--out page.md | --from page.md) [--text]";
 const FENCE = "```";
+const ITEM = "- ";
+const SECTION = "## ";
 
 function blockBody(block) {
   switch (block.type) {
-    case "paragraph": return [block.text ?? ""];
+    case "paragraph": return [block.text].filter((text) => text !== undefined);
     case "bullets":
-    case "steps": return (block.items ?? []).map((item) => `- ${item}`);
+    case "steps":
+      if (block.items === undefined) return [];
+      return block.items.map((item) => `${ITEM}${item}`);
     case "code": return [FENCE, ...block.code.code.split("\n"), FENCE];
     case "table": return block.table.rows.map((row) => row.map((cell) => cell.replaceAll("|", "\\|")).join(" | "));
     case "callout": return [block.callout.text];
-    default: return [];
+    default: throw new Error(`unknown block type ${JSON.stringify(block.type)}`);
   }
 }
 
@@ -44,7 +48,7 @@ export function pageToMarkdown(page) {
   const head = { slug: page.slug, nav: page.nav, group: page.group, kind: page.kind, description: page.description };
   const lines = [`# ${page.title}`, `<!-- page ${JSON.stringify(head)} -->`];
   for (const section of page.sections) {
-    lines.push("", `## ${section.title}`);
+    lines.push("", `${SECTION}${section.title}`);
     for (const block of section.blocks) lines.push("", blockHeader(block), ...blockBody(block));
   }
   return `${lines.join("\n")}\n`;
@@ -56,11 +60,12 @@ function finishBlock(header, body) {
   switch (header.type) {
     case "paragraph": block.text = prose; break;
     case "bullets":
-    case "steps": block.items = body.filter((line) => line.startsWith("- ")).map((line) => line.slice(2)); break;
+    case "steps": block.items = body.filter((line) => line.startsWith(ITEM)).map((line) => line.slice(ITEM.length)); break;
     case "code": {
       const open = body.indexOf(FENCE);
       const close = body.lastIndexOf(FENCE);
-      block.code = { ...header.code, code: body.slice(open + 1, close).join("\n") };
+      const [, ...code] = body.slice(open, close);
+      block.code = { ...header.code, code: code.join("\n") };
       break;
     }
     // Cells are split on an unescaped ` | `; a `|` inside a cell travels as `\|`.
@@ -72,9 +77,9 @@ function finishBlock(header, body) {
 }
 
 export function markdownToPage(markdown) {
-  const lines = markdown.split("\n");
-  const title = lines[0].replace(/^# /, "");
-  const head = JSON.parse(lines[1].replace(/^<!-- page /, "").replace(/ -->$/, ""));
+  const [titleLine, headLine, ...rest] = markdown.split("\n");
+  const title = titleLine.replace(/^# /, "");
+  const head = JSON.parse(headLine.replace(/^<!-- page /, "").replace(/ -->$/, ""));
   const page = { slug: head.slug, nav: head.nav, group: head.group, kind: head.kind, title, description: head.description, sections: [] };
   let section = null;
   let header = null;
@@ -85,11 +90,11 @@ export function markdownToPage(markdown) {
     header = null;
     body = [];
   };
-  for (const line of lines.slice(2)) {
+  for (const line of rest) {
     if (line === FENCE) inFence = !inFence;
-    if (!inFence && line.startsWith("## ")) {
+    if (!inFence && line.startsWith(SECTION)) {
       flush();
-      section = { title: line.slice(3), blocks: [] };
+      section = { title: line.slice(SECTION.length), blocks: [] };
       page.sections.push(section);
     } else if (!inFence && line.startsWith("<!-- block ")) {
       flush();
@@ -110,31 +115,32 @@ function main() {
     slug: { type: "string" },
     out: { type: "string" },
     from: { type: "string" },
-  }, { positionals: 1, required: "plan slug".split(" ") });
+  }, { positionals: ["mode"], required: "plan slug".split(" ") });
   const plan = JSON.parse(readFileSync(values.plan, "utf8"));
-  const index = plan.pages.findIndex((page) => page.slug === values.slug);
-  if (index < 0) {
-    printReport({ error: "usage", detail: `${values.plan} has no page ${values.slug}; it has ${plan.pages.map((page) => page.slug).join(", ")}` });
-    process.exit(2);
+  const page = plan.pages.find((candidate) => candidate.slug === values.slug);
+  if (!page) {
+    printReport({ error: "usage", detail: `${values.plan} has no page ${values.slug}; it has ${plan.pages.map((candidate) => candidate.slug).join(", ")}` });
+    process.exit(EXIT_USAGE);
   }
-  if (positionals[0] === "export" && values.out) {
-    writeFileSync(values.out, pageToMarkdown(plan.pages[index]));
+  if (positionals.mode === "export" && values.out) {
+    writeFileSync(values.out, pageToMarkdown(page));
     printReport({ ok: true, exported: values.slug, out: values.out });
     return;
   }
-  if (positionals[0] === "import" && values.from) {
-    plan.pages[index] = markdownToPage(readFileSync(values.from, "utf8"));
+  if (positionals.mode === "import" && values.from) {
+    const imported = markdownToPage(readFileSync(values.from, "utf8"));
+    plan.pages = plan.pages.map((candidate) => (candidate === page ? imported : candidate));
     const errors = validatePlan(plan);
     if (errors.length) {
       printReport({ ok: false, imported: values.slug, written: false, errors });
-      process.exit(1);
+      process.exit(EXIT_STAGE_FAILED);
     }
-    writeFileSync(values.plan, `${JSON.stringify(plan, null, 2)}\n`);
+    writeFileSync(values.plan, `${JSON.stringify(plan, null, "  ")}\n`);
     printReport({ ok: true, imported: values.slug, written: values.plan });
     return;
   }
   printReport({ error: "usage", detail: `export needs --out, import needs --from; ${USAGE}` });
-  process.exit(2);
+  process.exit(EXIT_USAGE);
 }
 
 if (isMain(import.meta.url)) {
@@ -142,6 +148,6 @@ if (isMain(import.meta.url)) {
     main();
   } catch (error) {
     printReport({ ok: false, error: error.message });
-    process.exit(1);
+    process.exit(EXIT_STAGE_FAILED);
   }
 }

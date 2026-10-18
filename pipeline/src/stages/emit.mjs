@@ -7,30 +7,56 @@ import { mkdirSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { expandPath, readJson, printReport, parseCommand, isMain } from "../lib.mjs";
 
-function renderSection(section) {
+// The field that carries each block type's content. A block without it, of a
+// type not listed, or a second table or callout in one section (a DocPage
+// section holds one of each) is refused with its path: emitted, it became an
+// empty paragraph, an empty code sample, or a block that silently vanished.
+const CONTENT = {
+  paragraph: "text",
+  bullets: "items",
+  steps: "items",
+  code: "code",
+  table: "table",
+  callout: "callout",
+};
+
+function renderSection(section, sectionPath) {
   const out = { title: section.title };
-  for (const block of section.blocks) {
+  const append = (key, values) => {
+    if (!(key in out)) out[key] = [];
+    out[key].push(...values);
+  };
+  const single = (key, value, blockPath) => {
+    if (key in out) throw new Error(`${blockPath}: a section holds one ${key}, and this is a second`);
+    out[key] = value;
+  };
+  section.blocks.forEach((block, index) => {
+    const blockPath = `${sectionPath}.blocks[${index}]`;
+    const field = CONTENT[block.type];
+    if (field === undefined) throw new Error(`${blockPath}: block type ${JSON.stringify(block.type)} cannot be emitted`);
+    const content = block[field];
+    if (content === undefined) throw new Error(`${blockPath}: a ${block.type} block carries no ${field}`);
     switch (block.type) {
       case "paragraph":
-        (out.paragraphs ??= []).push(block.text ?? "");
+        append("paragraphs", [content]);
         break;
       case "bullets":
-        (out.bullets ??= []).push(...(block.items ?? []));
+        append("bullets", content);
         break;
       case "steps":
-        (out.steps ??= []).push(...(block.items ?? []));
+        append("steps", content);
         break;
       case "code":
-        (out.code ??= []).push(block.code ?? { code: "" });
+        append("code", [content]);
         break;
       case "table":
-        out.table = block.table;
+        single("table", content, blockPath);
         break;
       case "callout":
-        out.callout = block.callout;
+        single("callout", content, blockPath);
         break;
     }
-  }
+  });
   return out;
 }
 
@@ -47,13 +73,14 @@ export function emitPlan(plan) {
     ...(p.group !== undefined ? { eyebrow: p.group } : {}),
     title: p.title,
     description: p.description,
-    sections: p.sections.map(renderSection),
+    sections: p.sections.map((section, index) => renderSection(section, `page ${p.slug} sections[${index}]`)),
   }));
 
   const docsNav = [];
   const byLabel = new Map();
   for (const p of pages) {
-    const label = p.group ?? "Documentation";
+    // A page the plan puts in no group is listed under the product's own name.
+    const label = p.group === undefined ? plan.product : p.group;
     if (!byLabel.has(label)) {
       const group = { label, items: [] };
       byLabel.set(label, group);
@@ -67,8 +94,8 @@ export function emitPlan(plan) {
     ` (${plan.product} ${plan.version}).\n` +
     `// DocPage data module for DocumentationLayout (@wisent-ai/components >= 0.4.0).\n` +
     `// Every block in the source plan carries a verified claim. Do not edit by hand.\n\n` +
-    `export const docPages = ${JSON.stringify(docPages, null, 2)} as const;\n\n` +
-    `export const docsNav = ${JSON.stringify(docsNav, null, 2)} as const;\n`;
+    `export const docPages = ${JSON.stringify(docPages, null, "  ")} as const;\n\n` +
+    `export const docsNav = ${JSON.stringify(docsNav, null, "  ")} as const;\n`;
 
   return { docPages, docsNav, module };
 }
@@ -77,7 +104,7 @@ async function main() {
   const { values } = parseCommand(
     "node src/stages/emit.mjs --plan plan.json --out <dir> [--text]",
     { plan: { type: "string" }, out: { type: "string" } },
-    { required: "plan out".split(" ") },
+    { positionals: [], required: "plan out".split(" ") },
   );
   const plan = readJson(values.plan);
   const outDir = expandPath(values.out);

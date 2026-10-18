@@ -2,27 +2,42 @@
 // Hand-rolled validator implementing schemas/plan.schema.json exactly:
 // closed page kinds, a claim required on every block, additionalProperties
 // false everywhere. Returns [] or a list of { path, message } errors.
-import { readJson, printReport, parseCommand, isMain } from "./lib.mjs";
+import { readFileSync } from "node:fs";
+import { readJson, printReport, parseCommand, isMain, EXIT_STAGE_FAILED } from "./lib.mjs";
 
-export const PAGE_KINDS = [
-  "overview", "quick-start", "task-guide", "examples", "concept",
-  "cli-reference", "api-reference", "config-reference", "sdk-reference",
-  "changelog", "migration", "versions", "troubleshooting", "security",
-  "limits", "support", "faq", "definitions", "contributing",
-];
-export const BLOCK_TYPES = ["paragraph", "bullets", "steps", "code", "table", "callout"];
-const SOURCE_KINDS = ["file", "command", "url"];
-const CALLOUT_TONES = ["note", "tip"];
-const SLUG_RE = /^[a-z0-9-]+$/;
+// The closed sets and the bounds are read from the schema itself, so the
+// validator and plan.schema.json cannot drift: they were written out a second
+// time here.
+const SCHEMA = JSON.parse(
+  readFileSync(new URL("../schemas/plan.schema.json", import.meta.url), "utf8"),
+);
+const PAGE = SCHEMA.properties.pages.items;
+const SECTION = PAGE.properties.sections.items;
+const BLOCK = SECTION.properties.blocks.items;
+export const PAGE_KINDS = PAGE.properties.kind.enum;
+export const BLOCK_TYPES = BLOCK.properties.type.enum;
+const SOURCE_KINDS = SCHEMA.properties.sources.additionalProperties.properties.kind.enum;
+const CALLOUT_TONES = BLOCK.properties.callout.properties.tone.enum;
+const SLUG_PATTERN = PAGE.properties.slug.pattern;
+const SLUG_RE = new RegExp(SLUG_PATTERN);
 
 export function validatePlan(plan) {
   const errors = [];
   const err = (path, message) => errors.push({ path, message });
   const isObj = (v) => v !== null && typeof v === "object" && !Array.isArray(v);
-  const str = (v, path, minLength = 0) => {
+  const str = (v, path) => {
     if (typeof v !== "string") { err(path, "must be a string"); return false; }
-    if (v.length < minLength) { err(path, `must have minLength ${minLength}`); return false; }
     return true;
+  };
+  // `node` is the schema property the value answers; its minLength, when it
+  // declares one, bounds the string.
+  const bounded = (v, path, node) => {
+    if (!str(v, path)) return false;
+    if (v.length < node.minLength) { err(path, `must have minLength ${node.minLength}`); return false; }
+    return true;
+  };
+  const atLeast = (list, path, node) => {
+    if (list.length < node.minItems) err(path, `must have minItems ${node.minItems}`);
   };
   const closed = (obj, path, allowed) => {
     for (const k of Object.keys(obj)) {
@@ -49,8 +64,8 @@ export function validatePlan(plan) {
   closed(plan, "$", ["product", "version", "sources", "terms", "pages"]);
   if (!required(plan, "$", ["product", "version", "sources", "terms", "pages"])) return errors;
 
-  str(plan.product, "$.product", 1);
-  str(plan.version, "$.version", 1);
+  bounded(plan.product, "$.product", SCHEMA.properties.product);
+  bounded(plan.version, "$.version", SCHEMA.properties.version);
 
   // sources: named registry
   if (!isObj(plan.sources)) {
@@ -85,14 +100,14 @@ export function validatePlan(plan) {
     err("$.pages", "must be an array");
     return errors;
   }
-  if (plan.pages.length < 1) err("$.pages", "must have minItems 1");
+  atLeast(plan.pages, "$.pages", SCHEMA.properties.pages);
   plan.pages.forEach((page, pi) => {
     const pp = `$.pages[${pi}]`;
     if (!isObj(page)) { err(pp, "must be an object"); return; }
     closed(page, pp, ["slug", "nav", "group", "kind", "title", "description", "sections"]);
     if (!required(page, pp, ["slug", "nav", "kind", "title", "description", "sections"])) return;
     if (str(page.slug, `${pp}.slug`) && !SLUG_RE.test(page.slug)) {
-      err(`${pp}.slug`, "must match ^[a-z0-9-]+$");
+      err(`${pp}.slug`, `must match ${SLUG_PATTERN}`);
     }
     str(page.nav, `${pp}.nav`);
     if ("group" in page) str(page.group, `${pp}.group`);
@@ -100,7 +115,7 @@ export function validatePlan(plan) {
     str(page.title, `${pp}.title`);
     str(page.description, `${pp}.description`);
     if (!Array.isArray(page.sections)) { err(`${pp}.sections`, "must be an array"); return; }
-    if (page.sections.length < 1) err(`${pp}.sections`, "must have minItems 1");
+    atLeast(page.sections, `${pp}.sections`, PAGE.properties.sections);
     page.sections.forEach((section, si) => {
       const sp = `${pp}.sections[${si}]`;
       if (!isObj(section)) { err(sp, "must be an object"); return; }
@@ -108,7 +123,7 @@ export function validatePlan(plan) {
       if (!required(section, sp, ["title", "blocks"])) return;
       str(section.title, `${sp}.title`);
       if (!Array.isArray(section.blocks)) { err(`${sp}.blocks`, "must be an array"); return; }
-      if (section.blocks.length < 1) err(`${sp}.blocks`, "must have minItems 1");
+      atLeast(section.blocks, `${sp}.blocks`, SECTION.properties.blocks);
       section.blocks.forEach((block, bi) => {
         const bp = `${sp}.blocks[${bi}]`;
         if (!isObj(block)) { err(bp, "must be an object"); return; }
@@ -124,7 +139,7 @@ export function validatePlan(plan) {
           closed(block.claim, cp, ["source", "evidence", "evidenceIsRegex"]);
           if (required(block.claim, cp, ["source", "evidence"])) {
             str(block.claim.source, `${cp}.source`);
-            str(block.claim.evidence, `${cp}.evidence`, 3);
+            bounded(block.claim.evidence, `${cp}.evidence`, BLOCK.properties.claim.properties.evidence);
             if ("evidenceIsRegex" in block.claim && typeof block.claim.evidenceIsRegex !== "boolean") {
               err(`${cp}.evidenceIsRegex`, "must be a boolean");
             }
@@ -183,10 +198,10 @@ export function validatePlan(plan) {
 }
 
 function main() {
-  const { positionals } = parseCommand("node src/schema.mjs <plan.json> [--text]", {}, { positionals: 1 });
-  const errors = validatePlan(readJson(positionals[0]));
-  printReport({ ok: errors.length === 0, errors });
-  process.exit(errors.length === 0 ? 0 : 1);
+  const { positionals } = parseCommand("node src/schema.mjs <plan.json> [--text]", {}, { positionals: ["plan"], required: [] });
+  const errors = validatePlan(readJson(positionals.plan));
+  printReport({ ok: !errors.length, errors });
+  if (errors.length) process.exit(EXIT_STAGE_FAILED);
 }
 
 if (isMain(import.meta.url)) main();
