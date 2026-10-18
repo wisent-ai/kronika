@@ -200,7 +200,7 @@ kronika onboarding --json      # machine-readable screen
 ```
 
 The journey is the definition the package ships
-(`src/onboarding_first_use.json`): it starts with the Markdown already in the
+(`src/onboarding/onboarding_first_use.json`): it starts with the Markdown already in the
 repository and leads to `kronika init`. It needs no Brama route and completes
 only after the canonical sync manifest is atomically written or an identical
 manifest is accepted (`documentation_workspace_initialized`). Progress is one
