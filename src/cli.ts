@@ -4,7 +4,6 @@ import { execFileSync } from "node:child_process";
 
 import { BramaClient } from "./docs/model/brama.js";
 import { checkDocumentation } from "./docs/checker.js";
-import type { OnboardingAction } from "./onboarding/onboarding.js";
 import { recordWorkspaceInitialized, renderOnboardingView, runOnboardingAction } from "./onboarding/onboarding.js";
 import { startKronikaGui } from "./gui.js";
 import { collectSources } from "./docs/sources.js";
@@ -19,30 +18,37 @@ import { parseArguments } from "./cli/arguments.js";
 import type { ParsedArguments } from "./cli/arguments.js";
 import { readCredential } from "./cli/skarbiec.js";
 
+// The exit statuses the interfaces page declares.
+const EXIT_USAGE = 2; // https://github.com/wisent-ai/kronika/blob/main/docs/interfaces.md ("refusal and the help on stderr and exits `2`, before resolving credentials.")
+const EXIT_FAILED = 1; // https://github.com/wisent-ai/kronika/blob/main/docs/interfaces.md ("Exit status `1` is reserved for a well-formed command that failed or found a blocker.")
+
+/** JSON a machine reads, one indented document per answer. */
+const json = (value: unknown): string => `${JSON.stringify(value, null, "  ")}\n`;
+
 const main = async (): Promise<void> => {
-  // Everything parseArguments refuses is the invocation itself: exit 2 with
-  // the help, apart from a failed run's 1 (cli.md rule 10).
+  // The words after node and this script.
+  const [, , ...words] = process.argv;
+  // Everything parseArguments refuses is the invocation itself: the usage
+  // status with the help, apart from a failed run's status (cli.md rule 10).
   let args: ParsedArguments;
   try {
-    args = parseArguments(process.argv.slice(2));
+    args = parseArguments(words);
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     process.stderr.write(`kronika: ${message}\n\n${HELP}\n`);
-    process.exitCode = 2;
+    process.exitCode = EXIT_USAGE;
     return;
   }
   if (args.command === "help") {
     // `kronika check --help` answers about check; `kronika --help` about all.
-    const first = process.argv[2];
+    const [first] = words;
     process.stdout.write(`${first && !first.startsWith("-") ? helpFor(first) : HELP}\n`);
     return;
   }
 
   if (args.command === "onboarding") {
     const result = await runOnboardingAction(args.onboarding, { client: "cli" });
-    process.stdout.write(args.json
-      ? `${JSON.stringify(result, null, 2)}\n`
-      : `${renderOnboardingView(result)}\n`);
+    process.stdout.write(args.json ? json(result) : `${renderOnboardingView(result)}\n`);
     return;
   }
   if (args.command === "gui") {
@@ -57,8 +63,8 @@ const main = async (): Promise<void> => {
     const result = initializeDocumentationWorkspace({
       repo: args.repo,
       manifestPath: args.manifest,
-      ...(args.documents.length > 0 ? { documents: args.documents } : {}),
-      ...(args.sources.length > 0 ? { sources: args.sources } : {}),
+      ...(args.documents.length ? { documents: args.documents } : {}),
+      ...(args.sources.length ? { sources: args.sources } : {}),
       ...(args.instruction ? { instruction: args.instruction } : {}),
       replace: args.replace,
     });
@@ -72,7 +78,7 @@ const main = async (): Promise<void> => {
       return;
     }
     printAnswer(result, args.json);
-    process.exitCode = 1;
+    process.exitCode = EXIT_FAILED;
     return;
   }
 
@@ -82,7 +88,7 @@ const main = async (): Promise<void> => {
     output: args.output,
     ...(args.maxInputBytes === undefined ? {} : { maxInputBytes: args.maxInputBytes }),
     ...(args.maxFileBytes === undefined ? {} : { maxFileBytes: args.maxFileBytes }),
-    ...(args.sources.length > 0 ? { sources: args.sources } : {}),
+    ...(args.sources.length ? { sources: args.sources } : {}),
   });
 
   if (args.command === "sources") {
@@ -94,18 +100,16 @@ const main = async (): Promise<void> => {
       sources: collection.documents.map(({ path, bytes }) => ({ path, bytes })),
       skipped: collection.skipped,
     }, args.json);
-
     return;
   }
 
-
-  const bramaUrl = process.env.BRAMA_URL || process.env.MODEL_ROUTER_URL;
+  const bramaUrl = process.env.BRAMA_URL;
   // Only role references travel in the environment; the secrets themselves
   // are read through Stado by the role their item plays (cli.md rule 15).
   const apiKeyRole = process.env.BRAMA_API_KEY_ROLE;
   const agentId = process.env.WISENT_APP_AGENT_ID;
   const authSecretRole = process.env.WISENT_APP_AGENT_AUTH_SECRET_ROLE;
-  if (!bramaUrl) throw new Error("BRAMA_URL or MODEL_ROUTER_URL is required");
+  if (!bramaUrl) throw new Error("BRAMA_URL is required: the address of the Brama gateway");
   if (!apiKeyRole) throw new Error("BRAMA_API_KEY_ROLE is required: ROLE#FIELD naming the role the item holding the Brama bearer plays, and its field");
   const apiKey = readCredential(apiKeyRole, "BRAMA_API_KEY_ROLE");
   const authSecret = authSecretRole ? readCredential(authSecretRole, "WISENT_APP_AGENT_AUTH_SECRET_ROLE") : undefined;
@@ -137,10 +141,10 @@ const main = async (): Promise<void> => {
     const rewritten = result.outcomes.filter((outcome) => outcome.action === "rewritten");
     const failed = result.outcomes.filter((outcome) => outcome.action === "failed");
     let committed = false;
-    if (args.commit && !args.dryRun && (rewritten.length > 0 || result.stateWritten)) {
+    if (args.commit && !args.dryRun && (rewritten.length || result.stateWritten)) {
       const paths = [...rewritten.map((outcome) => outcome.output), args.state];
       execFileSync("git", ["-C", args.repo, "add", "--", ...paths], { stdio: "inherit" });
-      const subject = rewritten.length > 0
+      const subject = rewritten.length
         ? `kronika sync: reconcile ${rewritten.map((outcome) => outcome.output).join(", ")}`
         : "kronika sync: advance documentation baselines";
       execFileSync("git", ["-C", args.repo, "commit", "-m", subject], { stdio: "inherit" });
@@ -150,27 +154,30 @@ const main = async (): Promise<void> => {
       }
     }
     if (args.json) {
-      process.stdout.write(`${JSON.stringify({
+      process.stdout.write(json({
         headSha: result.headSha,
         dryRun: args.dryRun,
         committed,
         stateWritten: result.stateWritten,
         outcomes: result.outcomes,
-      }, null, 2)}\n`);
+      }));
     } else {
-      process.stdout.write(`Kronika sync at ${result.headSha.slice(0, 12)}${args.dryRun ? " (dry run)" : ""}\n`);
+      process.stdout.write(`Kronika sync at ${result.headSha}${args.dryRun ? " (dry run)" : ""}\n`);
+      // The action column is as wide as the longest action this run reports.
+      const width = Math.max(...result.outcomes.map((outcome) => outcome.action.length));
       for (const outcome of result.outcomes) {
-        process.stdout.write(`  ${outcome.action.padEnd(15)} ${outcome.output} — ${outcome.detail}\n`);
+        process.stdout.write(`  ${outcome.action.padEnd(width)} ${outcome.output} — ${outcome.detail}\n`);
       }
       if (committed) process.stdout.write(`  committed${args.push ? " and pushed" : ""}\n`);
     }
-    process.exitCode = failed.length > 0 ? 1 : 0;
+    if (failed.length) process.exitCode = EXIT_FAILED;
     return;
   }
   if (args.command === "check") {
+    if (args.base === undefined) throw new Error("check requires --base <ref>");
     const checkOptions: CheckDocumentationOptions = {
       ...sourceOptions(),
-      base: args.base ?? "",
+      base: args.base,
       head: args.head,
       model: args.model,
       ...(args.maxTokens === undefined ? {} : { maxTokens: args.maxTokens }),
@@ -179,25 +186,25 @@ const main = async (): Promise<void> => {
     };
     const result = await checkDocumentation(checkOptions, client);
     if (args.json) {
-      process.stdout.write(`${JSON.stringify({
+      process.stdout.write(json({
         passed: result.passed,
         summary: result.summary,
         findings: result.findings,
-        model: result.model ?? null,
+        ...(result.model ? { model: result.model } : {}),
         baseSha: result.baseSha,
         headSha: result.headSha,
         changedPaths: result.changedPaths,
         diffBytes: result.diffBytes,
         sourceCount: result.sources.length,
         skipped: result.skipped,
-      }, null, 2)}\n`);
+      }));
     } else {
       process.stdout.write(`Kronika documentation check: ${result.passed ? "PASSED" : "BLOCKED"}\n${result.summary}\n`);
       for (const finding of result.findings) {
         process.stdout.write(`  - ${finding.severity}: ${finding.message}\n`);
       }
     }
-    process.exitCode = result.passed ? 0 : 1;
+    if (!result.passed) process.exitCode = EXIT_FAILED;
     return;
   }
   const writeOptions: WriteDocumentationOptions = {
@@ -210,14 +217,14 @@ const main = async (): Promise<void> => {
   const result = await writeDocumentation(writeOptions, client);
 
   if (args.json) {
-    process.stdout.write(`${JSON.stringify({
+    process.stdout.write(json({
       outputPath: result.outputPath,
       applied: result.applied,
-      model: result.model ?? null,
+      ...(result.model ? { model: result.model } : {}),
       sourceCount: result.sources.length,
       skipped: result.skipped,
       ...(!result.applied ? { content: result.content } : {}),
-    }, null, 2)}\n`);
+    }));
   } else if (result.applied) {
     process.stdout.write(`Wrote ${result.outputPath} from ${result.sources.length} source files via Brama.\n`);
   } else {
@@ -228,5 +235,5 @@ const main = async (): Promise<void> => {
 main().catch((error: unknown) => {
   const message = error instanceof Error ? error.message : String(error);
   process.stderr.write(`kronika: ${message}\n`);
-  process.exitCode = 1;
+  process.exitCode = EXIT_FAILED;
 });

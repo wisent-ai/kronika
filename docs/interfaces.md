@@ -240,10 +240,10 @@ export WISENT_APP_AGENT_AUTH_SECRET_ROLE='<signing role>#signing_secret'
 export KRONIKA_MODEL=any
 ```
 
-`MODEL_ROUTER_URL` is accepted for `BRAMA_URL`. No Brama address is built in:
-the site pipeline falls back to the address Stado's service directory publishes
-for this machine in `~/.stado/forwards/brama.local`, and the CLI requires one of
-the two variables. The two `_ROLE` variables are role references `ROLE#FIELD`,
+No Brama address is built in: the site pipeline falls back to the address
+Stado's service directory publishes for this machine in
+`~/.stado/forwards/brama.local`, and the CLI requires `BRAMA_URL` and refuses
+without it. The two `_ROLE` variables are role references `ROLE#FIELD`,
 never secrets and never item names: the CLI reads each value with
 `stado credentials get --role ROLE --field FIELD` (`STADO_BIN` names another
 executable), so no bearer or signing secret sits in the environment or argv, and

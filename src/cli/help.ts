@@ -58,7 +58,7 @@ Options:
   -h, --help             Show this help
 
 Brama environment:
-  BRAMA_URL (or MODEL_ROUTER_URL)   Brama, or without it any OpenAI-compatible provider
+  BRAMA_URL                       the Brama gateway, or any OpenAI-compatible provider
   BRAMA_API_KEY_ROLE              ROLE#FIELD: the role the item holding the bearer plays, and its field
   WISENT_APP_AGENT_ID             optional; unset, requests go unsigned
   WISENT_APP_AGENT_AUTH_SECRET_ROLE  ROLE#FIELD of the signing secret
@@ -74,8 +74,8 @@ every later run audits only documents whose declared sources changed, and
 exits non-zero when any document failed to reconcile.
 Options belonging to another command are usage errors, never ignored.
 Onboarding needs no Brama route: it completes when kronika init durably
-adopts an existing documentation workspace. The gui command binds only
-127.0.0.1, prints its session URL, and never opens a browser.`;
+adopts an existing documentation workspace. The gui command binds only the
+loopback interface, prints its session URL, and never opens a browser.`;
 
 /// What `kronika <command> --help` prints: the command's usage lines and its
 /// paragraph from the command list, then the shared options, so a person asking
@@ -84,17 +84,17 @@ adopts an existing documentation workspace. The gui command binds only
 const helpFor = (command: string): string => {
   const lines = HELP.split("\n");
   const usage = lines.filter((line) => line.startsWith(`  kronika ${command} `) || line === `  kronika ${command}`);
-  if (usage.length === 0) return HELP;
-  const commands = lines.indexOf("Commands:");
-  const options = lines.indexOf("Options:");
+  if (!usage.length) return HELP;
+  // The command list runs from the line after "Commands:" to "Options:".
+  const listed = lines.slice(lines.indexOf("Commands:"), lines.indexOf("Options:"));
+  const [, ...entries] = listed;
   const description: string[] = [];
-  for (let index = commands + 1; index < options; index += 1) {
-    const line = lines[index];
+  for (const line of entries) {
     if (line.startsWith(`  ${command} `)) description.push(line);
-    else if (description.length > 0 && line.startsWith("                        ")) description.push(line);
-    else if (description.length > 0) break;
+    else if (description.length && line.startsWith("                        ")) description.push(line);
+    else if (description.length) break;
   }
-  const rest = lines.slice(options).join("\n");
+  const rest = lines.slice(lines.indexOf("Options:")).join("\n");
   return ["Usage:", ...usage, "", "Command:", ...description, "", rest].join("\n");
 };
 
