@@ -15,8 +15,19 @@ import {
   EXIT_STAGE_FAILED, EXIT_BRAMA_DOWN,
 } from "../lib.mjs";
 
-const SCHEMA_PATH = new URL("../schemas/plan.schema.json", import.meta.url);
-const STANDARD_PATH = new URL("../WRITING-STANDARD.md", import.meta.url);
+// The plan schema the pipeline ships, beside src/ in pipeline/schemas.
+const SCHEMA_PATH = new URL("../../schemas/plan.schema.json", import.meta.url);
+
+// The writing standard is the caller's: how one site's pages must read is
+// that site's decision, so authoring takes it as --standard and reads it
+// whole. The pipeline ships none.
+function readStandard(standardPath) {
+  try {
+    return readFileSync(expandPath(standardPath), "utf8");
+  } catch (error) {
+    throw new Error(`cannot read the writing standard ${standardPath} named by --standard: ${error.message}`);
+  }
+}
 
 const WRITING_CONTRACT = `You author a documentation content plan, answered as the one JSON object its schema describes.
 - Page kinds are closed. Never invent a page type or a structural convention that is not in the schema.
@@ -47,9 +58,9 @@ async function collectExcerpts(brief, repo) {
 }
 
 /** Throws InfraDownError when Brama is unreachable. */
-export async function authorPlan({ brief, repo, model, endpoint }) {
+export async function authorPlan({ brief, repo, model, endpoint, standardPath }) {
   const planSchema = readJson(SCHEMA_PATH);
-  const standard = readFileSync(STANDARD_PATH, "utf8");
+  const standard = readStandard(standardPath);
   const excerpts = await collectExcerpts(brief, repo);
   const messages = [
     { role: "system", content: `${WRITING_CONTRACT}\n\nThe writing standard (how pages must read and behave; follow it exactly):\n${standard}` },
@@ -70,14 +81,15 @@ export async function authorPlan({ brief, repo, model, endpoint }) {
 
 async function main() {
   const { values } = parseCommand(
-    "node src/stages/author.mjs --brief brief.json [--repo path] [--out plan.json] [--model m] [--text]",
+    "node src/stages/author.mjs --brief brief.json --standard <writing-standard.md> [--repo path] [--out plan.json] [--model m] [--text]",
     {
       brief: { type: "string" },
+      standard: { type: "string" },
       out: { type: "string", default: "plan.json" },
       repo: { type: "string" },
       model: { type: "string", default: "default" },
     },
-    { positionals: [], required: ["brief"] },
+    { positionals: [], required: ["brief", "standard"] },
   );
   const brief = readJson(values.brief);
   const repo = expandPath(values.repo ?? brief.repo);
@@ -89,7 +101,7 @@ async function main() {
     die({ error: "not_configured", detail: e.message }, EXIT_STAGE_FAILED);
   }
   try {
-    const { plan, schemaErrors } = await authorPlan({ brief, repo, model: values.model, endpoint });
+    const { plan, schemaErrors } = await authorPlan({ brief, repo, model: values.model, endpoint, standardPath: values.standard });
     if (schemaErrors.length) {
       die({ error: "invalid_plan", detail: "model plan failed schema validation", schemaErrors }, EXIT_STAGE_FAILED);
     }

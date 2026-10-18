@@ -15,7 +15,7 @@ the model is deterministic and verifiable.
 | Surface detection | [`pipeline/src/stages/detect.mjs`](../pipeline/src/stages/detect.mjs) | `brief.json` — computed from the product repo, not decided by anyone |
 | Plan authoring | model via Brama | `plan.json` conforming to [`pipeline/schemas/plan.schema.json`](../pipeline/schemas/plan.schema.json) |
 | Validation | [`pipeline/src/stages/validate.mjs`](../pipeline/src/stages/validate.mjs) | pass/fail per validator, machine-readable report |
-| Writing standard | `pipeline/src/WRITING-STANDARD.md`, read by the authoring stage and injected into its prompt; this repository no longer carries the file, so authoring stops naming that path until it is restored | injected into the authoring prompt |
+| Writing standard | the caller's file, named by `--standard` on `kronika-site` and on `pipeline/src/stages/author.mjs`, read whole by the authoring stage and injected into its prompt | injected into the authoring prompt |
 | Emission | [`pipeline/src/stages/emit.mjs`](../pipeline/src/stages/emit.mjs) | `DocPage` data module for `DocumentationLayout` |
 | Publication | consumer site CI | deploy only on all-green |
 
@@ -139,14 +139,12 @@ If the CLI help probe fails during authoring, the stage stops before contacting
 Brama and names the binary, exit result, process error and both captured streams.
 Partial stdout from a failed command is not accepted as source evidence.
 
-The writing standard itself was written by reading exactly its two named
-sources — the 50-reference evidence set in Spis and our own previous
-documentation (the restored February corpus). When either source changes,
-the standard changes with it.
-
-The writing standard for everything this pipeline produces is the operator's
-restored human-written corpus (the February 2026 Wisent documentation, now
-live at `ster.wisent.com/docs`) together with the 50-reference evidence set in
-`product-guidelines/documentation-site-examples/`: same page kinds, same
-anatomy, same sourcing discipline. The validators below enforce that bar
-mechanically because the author here is a model.
+The pipeline ships no writing standard: how one site's pages must read is
+that site's decision. Authoring without `--plan` needs `--standard <file>`,
+and `kronika-site` refuses its absence before detection with exit 2:
+`authoring a plan needs --standard, the writing standard its pages follow, or
+--plan to load one already written`. A file that cannot be read stops the
+author stage with `author_failed` and `cannot read the writing standard
+<path> named by --standard: <cause>`; a loaded plan needs no standard. The
+validators above enforce the evidence bar mechanically because the author
+here is a model; the standard says how the pages read.

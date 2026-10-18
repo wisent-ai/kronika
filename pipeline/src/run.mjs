@@ -11,19 +11,24 @@ import { runValidators } from "./stages/validate.mjs";
 import { authorPlan } from "./stages/author.mjs";
 import { emitPlan } from "./stages/emit.mjs";
 import {
-  expandPath, readJson, printReport, parseCommand, isMain, resolveEndpoint, InfraDownError, EndpointNotConfiguredError,
-  EXIT_STAGE_FAILED, EXIT_BRAMA_DOWN,
+  expandPath, readJson, printReport, parseCommand, die, isMain, resolveEndpoint, InfraDownError, EndpointNotConfiguredError,
+  EXIT_STAGE_FAILED, EXIT_BRAMA_DOWN, EXIT_USAGE,
 } from "./lib.mjs";
 
-const USAGE = "kronika-site <productRepo> --sources <file> [--plan <file>] [--out <dir>] [--model <selector>] [--text]";
+const USAGE = "kronika-site <productRepo> --sources <file> (--standard <writing-standard.md> | --plan <file>) [--out <dir>] [--model <selector>] [--text]";
 
 async function main() {
   const { values, positionals } = parseCommand(USAGE, {
     sources: { type: "string" },
+    standard: { type: "string" },
     plan: { type: "string" },
     out: { type: "string" },
     model: { type: "string", default: "default" },
   }, { positionals: ["productRepo"], required: ["sources"] });
+  // Authoring writes to the caller's writing standard; a loaded plan needs none.
+  if (!values.plan && !values.standard) {
+    die({ error: "usage", detail: `authoring a plan needs --standard, the writing standard its pages follow, or --plan to load one already written; usage: ${USAGE}` }, EXIT_USAGE);
+  }
 
   const stages = [];
   const finish = (ok, code) => {
@@ -52,7 +57,7 @@ async function main() {
       fail();
     }
     try {
-      const authored = await authorPlan({ brief, repo: brief.repo, model: values.model, endpoint });
+      const authored = await authorPlan({ brief, repo: brief.repo, model: values.model, endpoint, standardPath: values.standard });
       if (authored.schemaErrors.length) {
         stages.push({ stage: "author", ok: false, error: "invalid_plan", schemaErrors: authored.schemaErrors });
         fail();

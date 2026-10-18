@@ -73,6 +73,7 @@ try {
     { args: ['--unknown-option'], field: '--unknown-option' },
     { args: ['--sources'], field: '--sources' },
     { args: [project], field: '--sources' },
+    { args: [project, '--sources', join(project, 'README.md')], field: '--standard' },
   ];
   for (const item of siteCases) {
     const result = await command(process.execPath, [site, ...item.args]);
