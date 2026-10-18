@@ -57,6 +57,10 @@ try {
   assert.equal(revision.exit, success, revision.stderr);
   assert.equal(revision.stdout.trim(), required('KRONIKA_TEST_SOURCE_REVISION'));
   report.source_revision = revision.stdout.trim();
+  const sourceStatus = await command('git', ['status', '--porcelain', '--untracked-files=all']);
+  assert.equal(sourceStatus.exit, success, sourceStatus.stderr);
+  assert.equal(sourceStatus.stdout, '', 'qualification requires a clean source checkout');
+  report.source_status = sourceStatus.stdout;
   const site = join(root, 'pipeline', 'src', 'run.mjs');
   report.site_entry_sha256 = createHash('sha256').update(readFileSync(site)).digest('hex');
   const siteHelp = await command(process.execPath, [site, '--help']);
@@ -123,7 +127,7 @@ try {
   assert.equal(typeof saved.installation_id, 'string');
   assert.ok(saved.installation_id.trim(), 'real onboarding did not persist its identity');
   // No control plane is configured here, so the shipped journey runs and the
-  // view says why, instead of falling back without a word.
+  // view names each control-plane read it could not make.
   const startedView = JSON.parse(started.stdout);
   assert.ok(startedView.controlPlaneFailures.some(failure =>
     failure.includes("the control plane's journey bundle could not be used: onboarding control plane is unavailable")),

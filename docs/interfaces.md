@@ -27,10 +27,9 @@ without rewriting bytes, restores the original and checks identity-preserving
 recovery. It also imports real Markdown while onboarding state is damaged,
 requires a successful retained project plus the separate bookkeeping cause,
 and repeats the import after restoring state without changing accepted bytes.
-Optional control-plane configuration is absent. Source revision, binary digest,
-commands, outputs and exit statuses remain in
-`.build/cli-refusals/<run>/report.json`; only run-owned state is removed.
-This journey qualifies CLI refusals, not successful model work or GUI rendering.
+Optional control-plane configuration is absent. HEAD must match the declared revision; tracked or untracked source changes refuse before either CLI runs.
+Revision, source status, binary digest, commands, output and exits remain in `.build/cli-refusals/<run>/report.json`; only run-owned state is removed.
+The digest identifies the executable, not the source that built it. This journey qualifies CLI refusals, not model work or GUI rendering.
 
 ### Adopt existing documents into the project manifest
 
