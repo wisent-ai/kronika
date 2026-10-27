@@ -13,7 +13,30 @@ const projectState = document.querySelector("#project-state");
 const projectSchema = document.querySelector("#project-schema");
 const projectDocuments = document.querySelector("#project-documents");
 
-const token = new URLSearchParams(window.location.hash.slice(1)).get("token") || "";
+// The session token kronika gui printed in the URL fragment; null when the
+// page was opened without it, which loadSession refuses by name.
+const token = new URLSearchParams(window.location.hash.replace(/^#/u, "")).get("token");
+
+// Every status an import answers, with its badge and its sentence. A status
+// this page does not know is refused by name, never shown as a raw word.
+const STATUSES = {
+  imported: {
+    label: "Imported",
+    summary: "Kronika atomically persisted the project and read the accepted manifest back.",
+  },
+  unchanged: {
+    label: "Unchanged",
+    summary: "The retained project is identical. No file was rewritten.",
+  },
+  conflicting: {
+    label: "Conflict",
+    summary: "A different project already exists. It was preserved; review it before choosing replace.",
+  },
+  rejected: {
+    label: "Rejected",
+    summary: "Kronika refused the selection before accepting a project.",
+  },
+};
 
 const lines = (value) => value
   .split(/\r?\n/u)
@@ -38,7 +61,7 @@ const appendPathGroup = (title, entries, tone) => {
   const heading = document.createElement("h3");
   heading.textContent = `${title} (${entries.length})`;
   section.append(heading);
-  if (entries.length === 0) {
+  if (!entries.length) {
     const empty = document.createElement("p");
     empty.className = "muted";
     empty.textContent = "None";
@@ -63,6 +86,7 @@ const appendPathGroup = (title, entries, tone) => {
   outcomeGroups.append(section);
 };
 
+// The documents in their accepted order, as an ordered list numbers them.
 const renderProject = (project) => {
   clear(projectDocuments);
   if (!project) {
@@ -70,12 +94,14 @@ const renderProject = (project) => {
     return;
   }
   projectState.hidden = false;
-  projectSchema.textContent = `Schema version ${project.schemaVersion}; ${project.documents.length} accepted document${project.documents.length === 1 ? "" : "s"}.`;
-  project.documents.forEach((documentEntry, index) => {
-    const article = document.createElement("article");
+  const accepted = new Intl.PluralRules("en-US").select(project.documents.length) === "one" ? "document" : "documents";
+  projectSchema.textContent = `Schema version ${project.schemaVersion}; ${project.documents.length} accepted ${accepted}.`;
+  const ordered = document.createElement("ol");
+  project.documents.forEach((documentEntry) => {
+    const article = document.createElement("li");
     article.className = "project-document";
     const heading = document.createElement("h4");
-    heading.textContent = `${index + 1}. ${documentEntry.output}`;
+    heading.textContent = documentEntry.output;
     const sourceLabel = document.createElement("p");
     sourceLabel.className = "document-label";
     sourceLabel.textContent = "Evidence sources";
@@ -91,26 +117,19 @@ const renderProject = (project) => {
     const instruction = document.createElement("p");
     instruction.textContent = documentEntry.instruction;
     article.append(heading, sourceLabel, sourceList, instructionLabel, instruction);
-    projectDocuments.append(article);
+    ordered.append(article);
   });
+  projectDocuments.append(ordered);
 };
 
 const renderResult = ({ result, project }) => {
-  const labels = {
-    imported: "Imported",
-    unchanged: "Unchanged",
-    conflicting: "Conflict",
-    rejected: "Rejected",
-  };
+  if (!Object.hasOwn(STATUSES, result.status)) {
+    throw new Error(`Kronika answered import status ${JSON.stringify(result.status)}, which this page does not know`);
+  }
+  const status = STATUSES[result.status];
   resultBadge.className = `badge ${result.status}`;
-  resultBadge.textContent = labels[result.status] || result.status;
-  resultSummary.textContent = result.status === "imported"
-    ? "Kronika atomically persisted the project and read the accepted manifest back."
-    : result.status === "unchanged"
-      ? "The retained project is identical. No file was rewritten."
-      : result.status === "conflicting"
-        ? "A different project already exists. It was preserved; review it before choosing replace."
-        : "Kronika refused the selection before accepting a project.";
+  resultBadge.textContent = status.label;
+  resultSummary.textContent = status.summary;
   clear(resultMeta);
   appendDefinition(resultMeta, "Repository", result.repo);
   appendDefinition(resultMeta, "Manifest", result.manifestPath);
@@ -148,22 +167,29 @@ const renderError = (message) => {
   resultTitle.focus();
 };
 
-const request = async (path, options = {}) => {
-  const response = await fetch(path, {
-    ...options,
-    headers: {
-      ...(options.headers || {}),
-      "X-Kronika-Token": token,
-    },
-  });
-  const payload = await response.json();
-  if (!response.ok && !payload.result) throw new Error(payload.error || `Request failed with HTTP ${response.status}`);
+// One request to the session's server with its token. An answer that is not
+// a success and carries no result is refused with the server's own error, or
+// with its status and body when it names none.
+const request = async (path, init) => {
+  const headers = new Headers(init.headers);
+  headers.set("X-Kronika-Token", token);
+  const response = await fetch(path, { ...init, headers });
+  const text = await response.text();
+  let payload;
+  try {
+    payload = JSON.parse(text);
+  } catch (error) {
+    throw new Error(`${path} answered HTTP ${response.status} with a body that is not JSON (${error.message}): ${text}`);
+  }
+  if (!response.ok && !payload.result) {
+    throw new Error(typeof payload.error === "string" ? payload.error : `${path} answered HTTP ${response.status}: ${text}`);
+  }
   return payload;
 };
 
 const loadSession = async () => {
   if (!token) throw new Error("Open the exact session URL printed by kronika gui; its token fragment is missing.");
-  const config = await request("/api/config");
+  const config = await request("/api/config", { method: "GET" });
   repoPath.textContent = config.repo;
 };
 

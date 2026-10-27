@@ -211,11 +211,11 @@ Only one action may be named. Combining or repeating `--advance`, `--skip`,
 journey state is read or changed. Argument ordering cannot turn a status
 request into a reset.
 
-Only an absent state file starts fresh. Read and JSON failures name the state
-path and actual cause; unsupported schema and malformed required
-`installation_id`, `pending_events`, `evidence` or `meta` fields refuse instead
-of rotating the identity or replacing retained data. Both CLI and graphical
-journey operations use this same store.
+Only an absent state file starts fresh. Read and JSON failures name the state path and actual cause; unsupported schema and malformed required
+`installation_id`, `pending_events`, `evidence` or `meta` fields refuse instead of rotating the identity or replacing retained data. Both CLI and
+graphical journey operations use this same store. The state file's format is `schema_version` 1; any other version is refused as another format.
+It holds the installation's identity and the events not yet delivered, so it is the operator's alone: its directory is created with mode 0700
+and the file written with mode 0600, then renamed into place so a reader never sees half of it.
 
 A control plane (`STADO_INTEGRATION_API_URL` with
 `KRONIKA_STADO_INTEGRATION_TOKEN`) may serve a newer version of the journey.

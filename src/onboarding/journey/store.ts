@@ -11,6 +11,13 @@ import type { Bundle, OnboardingEvent, Progress, State } from "./shapes.js";
 import { isRecord } from "./bundle.js";
 import { canonicalFallback, validateBundle } from "./bundle.js";
 
+// The state file's format version, and the owner-only modes its directory and
+// file are made with, as the onboarding section of the interfaces page states
+// them.
+const STATE_SCHEMA_VERSION = 1; // https://github.com/wisent-ai/kronika/blob/main/docs/interfaces.md ("The state file's format is `schema_version` 1")
+const STATE_DIRECTORY_MODE = 0o700; // https://github.com/wisent-ai/kronika/blob/main/docs/interfaces.md ("its directory is created with mode 0700")
+const STATE_FILE_MODE = 0o600; // https://github.com/wisent-ai/kronika/blob/main/docs/interfaces.md ("the file written with mode 0600")
+
 // Only a store that does not exist yet starts fresh. One that exists but
 // cannot be read, parsed or recognised is refused with its path and cause:
 // starting fresh would be saved over it and lose its recorded evidence and
@@ -21,7 +28,7 @@ export const loadState = async (): Promise<State> => {
     text = await readFile(STATE_PATH, "utf8");
   } catch (error) {
     if ((error as NodeJS.ErrnoException).code === "ENOENT") {
-      return { schema_version: 1, installation_id: randomUUID(), pending_events: [], evidence: {}, meta: {} };
+      return { schema_version: STATE_SCHEMA_VERSION, installation_id: randomUUID(), pending_events: [], evidence: {}, meta: {} };
     }
     throw new Error(`onboarding state ${STATE_PATH} cannot be read: ${(error as Error).message}`);
   }
@@ -31,8 +38,8 @@ export const loadState = async (): Promise<State> => {
   } catch (error) {
     throw new Error(`onboarding state ${STATE_PATH} is not valid JSON: ${(error as Error).message}`);
   }
-  if (!isRecord(parsed) || parsed.schema_version !== 1) {
-    throw new Error(`onboarding state ${STATE_PATH} is not a schema_version 1 state`);
+  if (!isRecord(parsed) || parsed.schema_version !== STATE_SCHEMA_VERSION) {
+    throw new Error(`onboarding state ${STATE_PATH} is not a schema_version ${STATE_SCHEMA_VERSION} state`);
   }
   if (typeof parsed.installation_id !== "string" || !parsed.installation_id.trim()) {
     throw new Error(`onboarding state ${STATE_PATH} has no nonempty installation_id`);
@@ -50,9 +57,9 @@ export const loadState = async (): Promise<State> => {
 };
 
 export const saveState = async (state: State): Promise<void> => {
-  await mkdir(dirname(STATE_PATH), { recursive: true, mode: 0o700 });
+  await mkdir(dirname(STATE_PATH), { recursive: true, mode: STATE_DIRECTORY_MODE });
   const temporary = `${STATE_PATH}.${process.pid}.${randomUUID()}.tmp`;
-  await writeFile(temporary, `${JSON.stringify(state, null, 2)}\n`, { mode: 0o600 });
+  await writeFile(temporary, `${JSON.stringify(state, null, 2)}\n`, { mode: STATE_FILE_MODE });
   await rename(temporary, STATE_PATH);
 };
 
@@ -70,10 +77,15 @@ export class StadoTransport {
     let base: URL;
     try {
       base = new URL(baseValue);
-      if (base.protocol !== "https:" || base.username || base.password) throw new Error("invalid origin");
-    } catch {
+    } catch (error) {
       this.available = false;
-      throw new Error("onboarding control plane URL is invalid");
+      throw new Error(`onboarding control plane URL STADO_INTEGRATION_API_URL does not parse: ${(error as Error).message}`);
+    }
+    if (base.protocol !== "https:" || base.username || base.password) {
+      this.available = false;
+      throw new Error(
+        `onboarding control plane URL STADO_INTEGRATION_API_URL must be an https origin without credentials; it is ${base.protocol}${base.username || base.password ? " with credentials" : ""}`,
+      );
     }
     const endpoint = new URL(
       `/integration/${encodeURIComponent(this.client)}/onboarding/${PRODUCT_ID}/${operation}`,

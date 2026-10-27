@@ -47,9 +47,8 @@ async function decide(endpoint, state, questions) {
  * Which of `words` name a concept of this product that a reader has to learn,
  * as opposed to ordinary English: one typed choice per word in one Brama
  * decision over the documentation pages, so the answer is the option Brama
- * chose for each word, never a list read out of prose. A built-in stopword
- * list decided this before, so every generic word it lacked was demanded as
- * a term and every product word it happened to hold was waved through.
+ * chose for each word, never a list read out of prose. No word list in this
+ * file decides which words are concepts.
  * Throws when Brama cannot answer or chooses an option it was not given.
  */
 async function productConcepts(words, product, pages, { endpoint }) {
