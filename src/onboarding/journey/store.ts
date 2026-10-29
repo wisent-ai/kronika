@@ -8,8 +8,8 @@ import { dirname } from "node:path";
 
 import { JOURNEY_ID, JOURNEY_VERSION, PRODUCT_ID, STATE_PATH } from "./shapes.js";
 import type { Bundle, OnboardingEvent, Progress, State } from "./shapes.js";
-import { isRecord } from "./bundle.js";
-import { canonicalFallback, validateBundle } from "./bundle.js";
+import { canonicalFallback, isRecord, validateBundle } from "./bundle.js";
+import { readCredential } from "../../cli/skarbiec.js";
 
 // The state file's format version, and the owner-only modes its directory and
 // file are made with, as the onboarding command's reference page states them.
@@ -62,8 +62,10 @@ export const saveState = async (state: State): Promise<void> => {
   await rename(temporary, STATE_PATH);
 };
 
-// The control plane is optional: without a configured integration endpoint and
-// token every call fails fast and the journey runs from local state alone.
+// The control plane is optional: without a configured integration endpoint
+// and the role reference of its bearer every call fails fast and the journey
+// runs from local state alone. The bearer itself is read through Stado by the
+// role its item plays, never from the environment (cli.md rule 15).
 export class StadoTransport {
   private available = true;
 
@@ -71,8 +73,20 @@ export class StadoTransport {
 
   private async post(operation: string, body: unknown): Promise<unknown> {
     const baseValue = process.env.STADO_INTEGRATION_API_URL;
-    const token = process.env.KRONIKA_STADO_INTEGRATION_TOKEN;
-    if (!this.available || !baseValue || !token) throw new Error("onboarding control plane is unavailable");
+    const tokenRole = process.env.KRONIKA_STADO_INTEGRATION_TOKEN_ROLE;
+    if (!this.available) throw new Error("onboarding control plane failed earlier in this run");
+    if (!baseValue || !tokenRole) {
+      throw new Error(
+        "onboarding control plane is not configured: STADO_INTEGRATION_API_URL and KRONIKA_STADO_INTEGRATION_TOKEN_ROLE (ROLE#FIELD) are both required",
+      );
+    }
+    let token: string;
+    try {
+      token = readCredential(tokenRole, "KRONIKA_STADO_INTEGRATION_TOKEN_ROLE");
+    } catch (error) {
+      this.available = false;
+      throw error;
+    }
     let base: URL;
     try {
       base = new URL(baseValue);
