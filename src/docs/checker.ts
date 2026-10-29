@@ -216,7 +216,7 @@ export const checkDocumentation = async (
   client: CompletionClient,
 ): Promise<CheckDocumentationResult> => {
   if (options.maxDiffBytes !== undefined
-    && (!Number.isSafeInteger(options.maxDiffBytes) || Math.sign(options.maxDiffBytes) !== Math.sign(Infinity))) {
+    && (!Number.isSafeInteger(options.maxDiffBytes) || options.maxDiffBytes <= Number())) {
     throw new Error("Diff byte limit must be a positive integer");
   }
   const repo = resolve(options.repo);
