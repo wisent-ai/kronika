@@ -13,10 +13,13 @@ import type { DocumentationFinding } from "../docs/model/types.js";
 import { SYNC_STATE_FILE } from "./shape.js";
 import type { SyncDocument, SyncManifest, SyncState } from "./shape.js";
 
+// git's answer is read whole: a cap would refuse a large diff with Node's ENOBUFS instead of
+// syncing it (https://nodejs.org/api/child_process.html#child_processexecfilesyncfile-args-options,
+// "maxBuffer ... If exceeded, the child process is terminated").
 export const git = (repo: string, args: string[]): string => execFileSync(
   "git",
   ["-C", repo, ...args],
-  { encoding: "utf8", stdio: ["ignore", "pipe", "pipe"], maxBuffer: 16 * 1024 * 1024 },
+  { encoding: "utf8", stdio: ["ignore", "pipe", "pipe"], maxBuffer: Infinity },
 ).trim();
 
 export class SyncFileReadError extends Error {

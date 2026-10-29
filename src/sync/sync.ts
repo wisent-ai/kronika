@@ -94,7 +94,7 @@ export const syncDocumentation = async (
       outcomes.push({
         output: document.output,
         action: "baseline",
-        detail: `first sync records ${headSha.slice(0, 12)} as the baseline; nothing is generated on a first run`,
+        detail: `first sync records ${headSha} as the baseline; nothing is generated on a first run`,
         changedPaths: [],
         findings: [],
       });
@@ -119,7 +119,7 @@ export const syncDocumentation = async (
       outcomes.push({
         output: document.output,
         action: "failed",
-        detail: `the recorded baseline ${entry.headSha.slice(0, 12)} cannot be diffed against HEAD: ${message}. Delete this entry from the state file to re-baseline.`,
+        detail: `the recorded baseline ${entry.headSha} cannot be diffed against HEAD: ${message}. Delete this entry from the state file to re-baseline.`,
         changedPaths: [],
         findings: [],
       });

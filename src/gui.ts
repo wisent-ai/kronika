@@ -11,11 +11,19 @@ import { SyncFileReadError } from "./sync/state.js";
 import { recordWorkspaceInitialized } from "./onboarding/onboarding.js";
 
 const LOOPBACK_HOST = "127.0.0.1";
-// One import request carries at most 64 KiB. How many paths it names and how long each is are
-// the filesystem's to refuse, by name.
-const MAX_REQUEST_BYTES = 64 * 1024;
+// One import request carries at most 65536 bytes, the cap the GUI's contract states:
+// https://kronika.wisent.com/docs/gui/#local-session-security ("JSON bodies are capped at 65536
+// bytes before parsing"). How many paths it names and how long each is are the filesystem's to
+// refuse, by name.
+const MAX_REQUEST_BYTES = 65_536;
+// The per-process session token is 256 bits, as the same contract states
+// (https://kronika.wisent.com/docs/gui/#local-session-security, "a 256-bit per-process token"),
+// above the 2^-160 guessing bound RFC 6749 §10.10 recommends for bearer credentials
+// (https://www.rfc-editor.org/rfc/rfc6749#section-10.10).
+const SESSION_TOKEN_BYTES = 256 / 8;
 const ASSET_ROOT = fileURLToPath(new URL("../../gui/", import.meta.url));
-// The statuses the GUI answers with.
+// The statuses the GUI answers with, as RFC 9110 §15 numbers them
+// (https://www.rfc-editor.org/rfc/rfc9110#section-15).
 const HTTP_OK = 200;
 const HTTP_BAD_REQUEST = 400;
 const HTTP_FORBIDDEN = 403;
@@ -24,6 +32,7 @@ const HTTP_CONFLICT = 409;
 const HTTP_PAYLOAD_TOO_LARGE = 413;
 const HTTP_UNSUPPORTED_MEDIA_TYPE = 415;
 const HTTP_UNPROCESSABLE = 422;
+const HTTP_INTERNAL_ERROR = 500;
 
 const ASSETS: Readonly<Record<string, { file: string; contentType: string }>> = {
   "/": { file: "index.html", contentType: "text/html; charset=utf-8" },
@@ -191,7 +200,7 @@ const retainedProject = (manifestPath: string): SyncManifest | null => {
 
 export const startKronikaGui = async (options: GuiServerOptions): Promise<GuiServer> => {
   const repo = resolve(options.repo);
-  const token = randomBytes(32).toString("base64url");
+  const token = randomBytes(SESSION_TOKEN_BYTES).toString("base64url");
   let expectedHost = "";
   let expectedOrigin = "";
 
@@ -252,7 +261,7 @@ export const startKronikaGui = async (options: GuiServerOptions): Promise<GuiSer
         response.destroy(error instanceof Error ? error : undefined);
         return;
       }
-      const statusCode = error instanceof HttpError ? error.statusCode : 500;
+      const statusCode = error instanceof HttpError ? error.statusCode : HTTP_INTERNAL_ERROR;
       const message = error instanceof Error ? error.message : "unexpected server error";
       sendJson(response, statusCode, { error: message });
     });
