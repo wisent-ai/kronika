@@ -244,14 +244,15 @@ mutation, and never opens a browser itself.
 
 Every verb — adopting existing documents, collecting sources, checking a
 change, writing a document, syncing a whole set, the loopback workspace
-and the first-use journey — and the library API are in
-[docs/interfaces.md](docs/interfaces.md).
+and the first-use journey — is in the
+[CLI reference](https://kronika.wisent.com/docs/cli/), and the library API in
+[Library API](https://kronika.wisent.com/docs/library/).
 
 ## Site pipeline (formerly `docs-cli`)
 
 Turning a product repository into its documentation site, and the gate
 that holds the result to its evidence, is in
-[docs/site-pipeline.md](docs/site-pipeline.md).
+[Site pipeline](https://kronika.wisent.com/docs/site-pipeline/).
 
 ## Operational model
 

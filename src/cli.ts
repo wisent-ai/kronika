@@ -18,9 +18,9 @@ import { parseArguments } from "./cli/arguments.js";
 import type { ParsedArguments } from "./cli/arguments.js";
 import { readCredential } from "./cli/skarbiec.js";
 
-// The exit statuses the interfaces page declares.
-const EXIT_USAGE = 2; // https://github.com/wisent-ai/kronika/blob/main/docs/interfaces.md ("refusal and the help on stderr and exits `2`, before resolving credentials.")
-const EXIT_FAILED = 1; // https://github.com/wisent-ai/kronika/blob/main/docs/interfaces.md ("Exit status `1` is reserved for a well-formed command that failed or found a blocker.")
+// The exit statuses the CLI reference declares.
+const EXIT_USAGE = 2; // https://kronika.wisent.com/docs/cli/ ("prints kronika: <message> and help on stderr with exit status 2")
+const EXIT_FAILED = 1; // https://kronika.wisent.com/docs/cli/ ("Operational failures and blocker findings use status 1")
 
 /** JSON a machine reads, one indented document per answer. */
 const json = (value: unknown): string => `${JSON.stringify(value, null, "  ")}\n`;

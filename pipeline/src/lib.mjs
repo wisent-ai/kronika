@@ -14,9 +14,9 @@ const INFRA_DOWN_STATUSES = [
 ];
 
 // The exit statuses every entry point answers with.
-export const EXIT_USAGE = 2; // https://github.com/wisent-ai/kronika/blob/main/docs/site-pipeline.md "exits 2 on an unknown option or a missing argument"
-export const EXIT_STAGE_FAILED = 1; // https://github.com/wisent-ai/kronika/blob/main/docs/site-pipeline.md "1 means a stage failed"
-export const EXIT_BRAMA_DOWN = 69; // https://github.com/wisent-ai/kronika/blob/main/docs/site-pipeline.md "69 that Brama is down"
+export const EXIT_USAGE = 2; // https://kronika.wisent.com/docs/site-pipeline/#stages ("2 usage error")
+export const EXIT_STAGE_FAILED = 1; // https://kronika.wisent.com/docs/site-pipeline/#stages ("1 a stage failed")
+export const EXIT_BRAMA_DOWN = 69; // https://kronika.wisent.com/docs/site-pipeline/#stages ("69 model infrastructure down")
 
 export function expandPath(p, base = process.cwd()) {
   if (p === "~") return homedir();

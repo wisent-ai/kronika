@@ -12,11 +12,10 @@ import { isRecord } from "./bundle.js";
 import { canonicalFallback, validateBundle } from "./bundle.js";
 
 // The state file's format version, and the owner-only modes its directory and
-// file are made with, as the onboarding section of the interfaces page states
-// them.
-const STATE_SCHEMA_VERSION = 1; // https://github.com/wisent-ai/kronika/blob/main/docs/interfaces.md ("The state file's format is `schema_version` 1")
-const STATE_DIRECTORY_MODE = 0o700; // https://github.com/wisent-ai/kronika/blob/main/docs/interfaces.md ("its directory is created with mode 0700")
-const STATE_FILE_MODE = 0o600; // https://github.com/wisent-ai/kronika/blob/main/docs/interfaces.md ("the file written with mode 0600")
+// file are made with, as the onboarding command's reference page states them.
+const STATE_SCHEMA_VERSION = 1; // https://kronika.wisent.com/docs/cli/onboarding/#state-file ("The state file's format is schema_version 1")
+const STATE_DIRECTORY_MODE = 0o700; // https://kronika.wisent.com/docs/cli/onboarding/#state-file ("its directory is created with mode 0700")
+const STATE_FILE_MODE = 0o600; // https://kronika.wisent.com/docs/cli/onboarding/#state-file ("the file written with mode 0600")
 
 // Only a store that does not exist yet starts fresh. One that exists but
 // cannot be read, parsed or recognised is refused with its path and cause:
