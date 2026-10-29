@@ -1,5 +1,5 @@
 // Shared helpers for docs-cli modules. Node builtins only.
-import { execFile } from "node:child_process";
+import { execFile, execFileSync } from "node:child_process";
 import { readFileSync } from "node:fs";
 import { homedir } from "node:os";
 import path from "node:path";
@@ -143,17 +143,16 @@ function failedFetch(url, error) {
   return { ok: false, error: `${url}: ${reasons.join("; ")}` };
 }
 
-// --- Model endpoint (Brama) ------------------------------------------------
+// --- Model endpoint (Brama, or the alternative Stado resolves) -------------
 
-/** Where `stado service directory publish` writes the address this machine dials for Brama. */
-export const BRAMA_FORWARD_MARKER = path.join(homedir(), ".stado", "forwards", "brama.local");
+/** The consumer Kronika is to Stado's capability resolution. */
+const CONSUMER = "kronika";
 
 export class EndpointNotConfiguredError extends Error {
   constructor(detail) {
     super(
-      `no valid Brama address is configured on this machine: ${detail}; set BRAMA_URL, or run ` +
-        "`stado service directory publish` so Stado writes the address this machine dials " +
-        `to ${BRAMA_FORWARD_MARKER}`,
+      `no model service answers Kronika on this machine: ${detail}; set BRAMA_URL, or declare an ` +
+        "alternative Stado hands out (`stado capabilities resolve inference --consumer kronika`)",
     );
     this.name = "EndpointNotConfiguredError";
   }
@@ -173,27 +172,69 @@ function configuredEndpoint(value, via) {
   return { url: url.href.replace(/\/+$/, ""), via };
 }
 
-/**
- * BRAMA_URL when the operator set it, else the address Stado's service
- * directory published for this machine (`~/.stado/forwards/brama.local`).
- * Brama's address is different on every machine, so none is written here;
- * with neither, the refusal names both ways to provide one. No provider
- * fallback.
- */
-export function resolveEndpoint(env = process.env, marker = BRAMA_FORWARD_MARKER) {
-  if (env.BRAMA_URL !== undefined) return configuredEndpoint(env.BRAMA_URL, "BRAMA_URL");
-  let published;
-  try {
-    published = readFileSync(marker, "utf8").trim();
-  } catch (e) {
-    throw new EndpointNotConfiguredError(`BRAMA_URL is unset and ${marker} cannot be read (${e.code ?? e.message})`);
+/** Every alternative a refusal envelope (stdout or stderr) names, as one sentence. */
+function unreachableNamed(printed) {
+  for (const text of printed) {
+    try {
+      const items = JSON.parse(text).details?.unreachable ?? [];
+      const sentence = items.map((item) => `${item.product} at ${item.route}: ${item.cause}`).join("; ");
+      if (sentence) return sentence;
+    } catch {
+      // Not the envelope; the next stream may be.
+    }
   }
-  return configuredEndpoint(published, marker);
+  return undefined;
+}
+
+function stado(args) {
+  return execFileSync("stado", args, { encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] });
+}
+
+/**
+ * BRAMA_URL when the operator set it; else what Stado's capability
+ * resolution hands Kronika (`stado capabilities resolve inference --consumer
+ * kronika`): Brama's route when it answers, or the OpenAI-compatible
+ * endpoint the operator declared in its place, with that endpoint's own
+ * `model` and `bearer` (read by the role it names). `failed` reports that
+ * Brama refused Kronika, so Stado proves it again now. When no alternative
+ * answers, the refusal names each one's product, route and cause.
+ */
+export function resolveEndpoint(env = process.env, { failed = false } = {}) {
+  if (env.BRAMA_URL !== undefined) return configuredEndpoint(env.BRAMA_URL, "BRAMA_URL");
+  const args = ["capabilities", "resolve", "inference", "--consumer", CONSUMER];
+  if (failed) args.push("--failed", "brama");
+  args.push("--json");
+  let printed;
+  try {
+    printed = stado(args);
+  } catch (error) {
+    if (typeof error.status !== "number") {
+      throw new EndpointNotConfiguredError(`BRAMA_URL is unset and stado did not run (${error.message})`);
+    }
+    const said = unreachableNamed([String(error.stdout ?? ""), String(error.stderr ?? "")]);
+    throw new EndpointNotConfiguredError(`BRAMA_URL is unset and no inference alternative answers: ${said ?? String(error.stderr ?? "").trim()}`);
+  }
+  const answer = JSON.parse(printed);
+  const via = `stado capabilities resolve inference --consumer ${CONSUMER} (${answer.provider})`;
+  const endpoint = { ...configuredEndpoint(answer.route, via), provider: answer.provider };
+  if (answer.provider === "brama") return endpoint;
+  if (!answer.model) {
+    throw new EndpointNotConfiguredError(`${answer.provider} at ${answer.route} answers in Brama's place but declares no model: set capabilities.inference.endpoint.model`);
+  }
+  let bearer;
+  if (answer.key_role) {
+    try {
+      bearer = stado(["credentials", "get", "--role", answer.key_role, "--field", "token"]).trim();
+    } catch (error) {
+      throw new EndpointNotConfiguredError(`${answer.provider} at ${answer.route} answers in Brama's place, but the key of role ${answer.key_role} cannot be read: ${String(error.stderr ?? error.message).trim()}`);
+    }
+  }
+  return { ...endpoint, model: answer.model, bearer };
 }
 
 export class InfraDownError extends Error {
   constructor(endpoint, detail) {
-    super(`brama endpoint unreachable: ${endpoint} (${detail})`);
+    super(`model service unreachable: ${endpoint} (${detail})`);
     this.name = "InfraDownError";
     this.endpoint = endpoint;
     this.detail = detail;
@@ -210,7 +251,7 @@ export class InfraDownError extends Error {
  * that one call, or arguments that are not one JSON object throws a plain
  * Error. Never calls a provider directly, and no clock cuts the request off.
  */
-export async function chatObject({ endpoint, messages, model, answer }) {
+export async function chatObject({ endpoint, bearer, messages, model, answer }) {
   const url = `${endpoint}/v1/chat/completions`;
   const tools = [{ type: "function", function: { name: answer.name, description: `The ${answer.name} answer, as its parameters describe it.`, strict: true, parameters: answer.schema } }];
   const toolChoice = { type: "function", function: { name: answer.name } };
@@ -219,7 +260,7 @@ export async function chatObject({ endpoint, messages, model, answer }) {
     res = await fetch(url, {
       method: "POST",
       redirect: "manual",
-      headers: { "content-type": "application/json" },
+      headers: { "content-type": "application/json", ...(bearer ? { authorization: `Bearer ${bearer}` } : {}) },
       body: JSON.stringify({ model, messages, tools, tool_choice: toolChoice }),
     });
   } catch (e) {

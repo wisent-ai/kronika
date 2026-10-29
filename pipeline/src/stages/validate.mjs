@@ -209,8 +209,11 @@ function validateStructure(plan) {
 
 /**
  * `endpoint` is the Brama address the terms judgement asks (under Brama's
- * own decision alias); without one it is resolved (BRAMA_URL or the service
- * directory marker) only when there is something to judge. A validator that
+ * own decision alias); without one it is resolved (BRAMA_URL, or what `stado
+ * capabilities resolve inference --consumer kronika` hands out) only when
+ * there is something to judge. A decision alias is Brama's, so an
+ * alternative answering in its place answers the judgement with its refusal,
+ * named in this validator's failure. A validator that
  * throws fails with its error as its one failure.
  */
 export async function runValidators({ plan, brief, repo, endpoint }) {
