@@ -5,6 +5,7 @@ import { createServer, type IncomingMessage, type Server, type ServerResponse } 
 import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
+import { repositoryRoot } from "./docs/sources.js";
 import { initializeDocumentationWorkspace } from "./sync/project.js";
 import { loadSyncManifest, type SyncManifest } from "./sync/sync.js";
 import { SyncFileReadError } from "./sync/state.js";
@@ -198,8 +199,37 @@ const retainedProject = (manifestPath: string): SyncManifest | null => {
   }
 };
 
+/**
+ * Why the loopback listener could not open, from the operating-system code
+ * Node reported (https://nodejs.org/api/errors.html#common-system-errors),
+ * and what the operator does about it.
+ */
+const listenFailure = (error: Error, port: number | undefined): Error => {
+  const code = "code" in error ? String(error.code) : "";
+  const where = port === undefined ? `${LOOPBACK_HOST} on an operating-system-assigned port` : `${LOOPBACK_HOST}:${port}`;
+  const head = `the graphical workspace cannot listen on ${where}`;
+  const chosen = port === undefined ? "" : `, or leave --port out and the operating system assigns a free one`;
+  switch (code) {
+    case "EADDRINUSE":
+      return new Error(port === undefined
+        ? `${head}: the operating system had no free loopback port to assign (${code}); close processes holding many ephemeral ports, or pass a free --port, and start again`
+        : `${head}: another process already listens there (${code}); stop that process (lsof -nP -iTCP:${port} -sTCP:LISTEN names it) or pass another --port${chosen}`);
+    case "EACCES":
+      return new Error(`${head}: the operating system refused this user that port (${code}); ports below 1024 are privileged on most systems, and a firewall or sandbox can refuse others; pass a --port of 1024 or more${chosen}`);
+    case "EADDRNOTAVAIL":
+      return new Error(`${head}: this machine has no ${LOOPBACK_HOST} interface to bind (${code}); bring the loopback interface up (on Linux: ip link set lo up) and start again`);
+    case "EMFILE":
+    case "ENFILE":
+      return new Error(`${head}: the ${code === "EMFILE" ? "process" : "system"} has no file descriptor left for a socket (${code}); close processes holding many files or raise the limit (ulimit -n), then start again`);
+    default:
+      return new Error(`${head}: ${error.message}${code ? ` (${code})` : ""}; the operating system refused the socket for a reason kronika does not classify, so look up that code for this system, fix it, and start again`);
+  }
+};
+
 export const startKronikaGui = async (options: GuiServerOptions): Promise<GuiServer> => {
-  const repo = resolve(options.repo);
+  // A workspace over a path that is no repository would start and then reject
+  // every import; it is refused before the socket opens instead.
+  const repo = repositoryRoot(options.repo, "--repo");
   const token = randomBytes(SESSION_TOKEN_BYTES).toString("base64url");
   let expectedHost = "";
   let expectedOrigin = "";
@@ -268,7 +298,7 @@ export const startKronikaGui = async (options: GuiServerOptions): Promise<GuiSer
   });
 
   await new Promise<void>((resolveListening, rejectListening) => {
-    const onError = (error: Error): void => rejectListening(error);
+    const onError = (error: Error): void => rejectListening(listenFailure(error, options.port));
     server.once("error", onError);
     server.listen(options.port ?? 0, LOOPBACK_HOST, () => {
       server.off("error", onError);
@@ -278,7 +308,7 @@ export const startKronikaGui = async (options: GuiServerOptions): Promise<GuiSer
   const address = server.address();
   if (!address || typeof address === "string") {
     server.close();
-    throw new Error("Kronika GUI did not receive a TCP address");
+    throw new Error(`the graphical workspace cannot start: Node reported its listening socket as ${JSON.stringify(address)} instead of a TCP address on ${LOOPBACK_HOST}, so no session URL can be formed; this is a Node or kronika defect, report it with this message and \`node --version\``);
   }
   expectedHost = `${LOOPBACK_HOST}:${address.port}`;
   expectedOrigin = `http://${expectedHost}`;

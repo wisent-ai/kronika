@@ -206,9 +206,35 @@ const automaticSource = (path: string): boolean => {
   return Boolean(AUTOMATIC_TEXT_EXTENSIONS[extname(name).toLowerCase()]);
 };
 
+/**
+ * The absolute repository root `repo` names, refused with its cause and fix
+ * when it is not a directory this process can open; `option` is where the
+ * caller took the path from.
+ */
+export const repositoryRoot = (repo: string, option: string): string => {
+  const root = resolve(repo);
+  const fix = `pass ${option} the path of an existing repository directory you can read`;
+  let metadata;
+  try {
+    metadata = statSync(root);
+  } catch (error) {
+    const code = error && typeof error === "object" && "code" in error ? String(error.code) : "";
+    const why = code === "ENOENT" ? "nothing exists at that path"
+      : code === "ENOTDIR" ? "a component of that path is a file, not a directory"
+      : code === "EACCES" || code === "EPERM" ? "this user may not look up a directory on that path"
+      : code === "ELOOP" ? "that path is a loop of symbolic links"
+      : code === "ENAMETOOLONG" ? "that path is longer than this system allows"
+      : `the operating system refused to read it: ${error instanceof Error ? error.message : String(error)}`;
+    throw new Error(`Repository ${root} (from ${option}) cannot be used: ${why}${code ? ` (${code})` : ""}; ${fix}`);
+  }
+  if (!metadata.isDirectory()) {
+    throw new Error(`Repository is not a directory: ${root} (from ${option}) is a file, and kronika reads a repository as a directory tree; ${fix}, not a file inside it`);
+  }
+  return root;
+};
+
 export const collectSources = (options: SourceOptions): SourceCollection => {
-  const repo = resolve(options.repo);
-  if (!statSync(repo).isDirectory()) throw new Error(`Repository is not a directory: ${repo}`);
+  const repo = repositoryRoot(options.repo, "--repo");
   if ([options.maxInputBytes, options.maxFileBytes].some((limit) => limit !== undefined && limit <= 0)) {
     throw new Error("Source byte limits must be positive");
   }

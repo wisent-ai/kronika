@@ -109,8 +109,12 @@ const main = async (): Promise<void> => {
   const apiKeyRole = process.env.BRAMA_API_KEY_ROLE;
   const agentId = process.env.WISENT_APP_AGENT_ID;
   const authSecretRole = process.env.WISENT_APP_AGENT_AUTH_SECRET_ROLE;
-  if (!bramaUrl) throw new Error("BRAMA_URL is required: the address of the Brama gateway");
-  if (!apiKeyRole) throw new Error("BRAMA_API_KEY_ROLE is required: ROLE#FIELD naming the role the item holding the Brama bearer plays, and its field");
+  if (!bramaUrl) {
+    throw new Error(`BRAMA_URL is required: ${args.command} asks a model through Brama, and BRAMA_URL, the address of the Brama gateway or another OpenAI-compatible provider, is ${bramaUrl === undefined ? "not set" : "set but empty"}; export BRAMA_URL=<gateway URL>, or run kronika sources, which reads the repository without a model`);
+  }
+  if (!apiKeyRole) {
+    throw new Error(`BRAMA_API_KEY_ROLE is required: ROLE#FIELD naming the role the item holding the Brama bearer plays, and its field; it is ${apiKeyRole === undefined ? "not set" : "set but empty"}, so no bearer can be read for ${bramaUrl}; export BRAMA_API_KEY_ROLE=<role>#<field> for the item stado credentials get answers, or set KRONIKA_CREDENTIALS_FILE to an owner-only JSON file of role -> field -> value`);
+  }
   const apiKey = readCredential(apiKeyRole, "BRAMA_API_KEY_ROLE");
   const authSecret = authSecretRole ? readCredential(authSecretRole, "WISENT_APP_AGENT_AUTH_SECRET_ROLE") : undefined;
 
