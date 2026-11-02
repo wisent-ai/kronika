@@ -1,16 +1,16 @@
-// Brama is one alternative of Kronika's model service, not a precondition.
-// The real author stage runs with BRAMA_URL unset and the real Stado
-// KRONIKA_TEST_STADO names as `stado`, in a home where no service directory
-// places Brama. With no other alternative declared it is refused naming Brama
-// and the endpoint alternative; with an OpenAI-compatible endpoint declared in
-// Brama's place, that endpoint is the one asked, for its own model, and Stado
-// records it as the one that served Kronika. The endpoint answers the chat
-// with 502, so the stage stops there naming the endpoint it asked.
+// Brama is one alternative of Kronika's model service, not a precondition,
+// and Kronika names none: with BRAMA_URL unset, each request is handed to
+// `stado capabilities call inference --consumer kronika`. The real author
+// stage runs with the real Stado KRONIKA_TEST_STADO names as `stado`, in a
+// home where no service directory places Brama. Nothing answers first: the
+// stage stops with the model infrastructure down, naming Brama and the command
+// that answers the kept request. The statement recorded for that request then
+// answers it: the stage writes the plan it carries, and Stado records the
+// attestation alternative as the one that served Kronika.
 import assert from 'node:assert/strict';
-import { spawn } from 'node:child_process';
+import { spawn, execFileSync } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
 import { mkdirSync, readFileSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
-import { createServer } from 'node:http';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -30,73 +30,83 @@ writeFileSync(brief, JSON.stringify({
 }));
 const standard = join(directory, 'standard.md');
 writeFileSync(standard, '# Writing standard\n\nPlain sentences.\n');
-const report = { status: 'failed', commands: [], asked: [], started_at: new Date().toISOString() };
+const planPath = join(directory, 'plan.json');
+const report = { status: 'failed', commands: [], started_at: new Date().toISOString() };
 const save = () => writeFileSync(join(directory, 'report.json'), JSON.stringify(report, null, '\t'));
+const environment = { ...process.env, HOME: home, PATH: `${bin}:${process.env.PATH}` };
+for (const name of ['BRAMA_URL', 'STADO_CAPABILITIES_RECORD', 'STADO_ATTESTATIONS', 'STADO_INFERENCE_ORDER', 'STADO_CONFIG']) delete environment[name];
 
-const server = createServer((request, response) => {
-  let body = '';
-  request.on('data', chunk => { body += chunk; });
-  request.on('end', () => {
-    report.asked.push({ method: request.method, url: request.url, body });
-    response.setHeader('content-type', 'application/json');
-    if (request.url === '/v1/models') {
-      response.end(JSON.stringify({ object: 'list', data: [{ id: 'endpoint-model', object: 'model' }] }));
-      return;
-    }
-    response.statusCode = 502;
-    response.end(JSON.stringify({ error: { message: 'endpoint-under-test-unavailable' } }));
-  });
-});
+function stado(args, input) {
+  const output = execFileSync('stado', args, { env: environment, encoding: 'utf8', input, stdio: ['pipe', 'pipe', 'pipe'] });
+  report.commands.push({ program: 'stado', args });
+  save();
+  return output;
+}
 
-async function author(extra) {
-  const record = { extra, stdout: '', stderr: '' };
+async function author() {
+  const record = { stdout: '', stderr: '' };
   report.commands.push(record);
   save();
-  const environment = { ...process.env, ...extra, HOME: home, PATH: `${bin}:${process.env.PATH}` };
-  for (const name of ['BRAMA_URL', 'STADO_CAPABILITIES_RECORD']) delete environment[name];
   const child = spawn(process.execPath, [
     join(root, 'pipeline', 'src', 'stages', 'author.mjs'),
-    '--brief', brief, '--standard', standard, '--repo', repo, '--out', join(directory, 'plan.json'),
+    '--brief', brief, '--standard', standard, '--repo', repo, '--out', planPath,
   ], { cwd: join(root, 'pipeline'), env: environment, stdio: ['ignore', 'pipe', 'pipe'] });
   for (const stream of ['stdout', 'stderr']) child[stream].on('data', chunk => { record[stream] += chunk; });
-  await new Promise((resolveExit, reject) => {
-    child.once('error', reject);
-    child.once('close', code => { record.exit = code; resolveExit(); });
-  });
+  const { promise, resolve: exited, reject } = Promise.withResolvers();
+  child.once('error', reject);
+  child.once('close', code => { record.exit = code; exited(); });
+  await promise;
   save();
   return record;
 }
 
 try {
-  const stado = process.env.KRONIKA_TEST_STADO;
-  assert.ok(stado?.trim(), 'KRONIKA_TEST_STADO names the real stado executable');
-  symlinkSync(stado, join(bin, 'stado'));
-  await new Promise(resolveListen => server.listen(0, '127.0.0.1', resolveListen));
-  const origin = `http://127.0.0.1:${server.address().port}`;
+  const real = process.env.KRONIKA_TEST_STADO;
+  assert.ok(real?.trim(), 'KRONIKA_TEST_STADO names the real stado executable');
+  symlinkSync(real, join(bin, 'stado'));
+  stado(['config', 'init']);
 
-  const unanswered = await author({});
-  assert.notEqual(unanswered.exit, 0, unanswered.stdout);
+  const unanswered = await author();
+  assert.equal(unanswered.exit, 69, `${unanswered.stdout}${unanswered.stderr}`);
   const said = `${unanswered.stdout}${unanswered.stderr}`;
-  assert.match(said, /no inference alternative answers: brama at [^;]+; model-endpoint at /, said);
-  assert.equal(report.asked.length, 0, 'no endpoint is declared, so none is asked');
+  assert.match(said, /brama at /, said);
+  assert.match(said, /stado capabilities attestation record inference --consumer kronika/, said);
 
-  const served = await author({
-    STADO_INFERENCE_ENDPOINT_URL: origin,
-    STADO_INFERENCE_ENDPOINT_MODEL: 'endpoint-model',
-  });
-  assert.notEqual(served.exit, 0, served.stdout);
-  const chats = report.asked.filter(item => item.method === 'POST' && item.url === '/v1/chat/completions');
-  assert.ok(chats.length > 0, `the endpoint itself was asked: ${JSON.stringify(report.asked)}`);
-  for (const chat of chats) assert.equal(JSON.parse(chat.body).model, 'endpoint-model');
-  assert.ok(`${served.stdout}${served.stderr}`.includes(origin), served.stdout);
-  const record = readFileSync(join(home, '.stado', 'capabilities.json'), 'utf8');
-  assert.match(record, /model-endpoint/);
+  const kept = JSON.parse(stado(['capabilities', 'attestation', 'list', 'inference', '--consumer', 'kronika', '--json']));
+  assert.equal(kept.length, 1, JSON.stringify(kept));
+  const shown = JSON.parse(stado(['capabilities', 'attestation', 'show', 'inference', '--consumer', 'kronika', kept[0].request]));
+  assert.equal(shown.asked.tool_choice.function.name, 'documentation_plan');
+  // The statement is the strict answer schema's own skeleton: required keys,
+  // empty lists. It reaches Kronika as the model's answer, and Kronika holds
+  // it to the whole plan schema, whose bounds the strict answer schema does
+  // not carry, so the stage is decided by the statement: invalid_plan, not
+  // the infrastructure down.
+  const schema = shown.asked.tools[0].function.parameters;
+  const sample = (node) => {
+    if (node.enum) return node.enum[0];
+    if (node.anyOf) return null;
+    switch (node.type) {
+      case 'object': return Object.fromEntries((node.required ?? []).map((key) => [key, sample(node.properties[key])]));
+      case 'array': return [];
+      case 'string': return 'example';
+      case 'boolean': return false;
+      default: throw new Error(`the answer schema holds a node this case does not answer: ${JSON.stringify(node)}`);
+    }
+  };
+  stado(['capabilities', 'attestation', 'record', 'inference', '--consumer', 'kronika', kept[0].request,
+    '--checked', 'built the plan from the schema the request carries'], JSON.stringify(sample(schema)));
+
+  const answered = await author();
+  assert.equal(answered.exit, 1, `${answered.stdout}${answered.stderr}`);
+  const refusal = JSON.parse(answered.stdout || answered.stderr);
+  assert.equal(refusal.error, 'invalid_plan', JSON.stringify(refusal));
+  assert.deepEqual(refusal.schemaErrors.map((error) => error.path), ['$.pages']);
+  assert.ok(readFileSync(join(home, '.stado', 'capabilities.json'), 'utf8').includes('"provider": "attestation"'), 'Stado records attestation serving kronika');
   report.status = 'passed';
 } catch (error) {
   report.error = error.stack;
   throw error;
 } finally {
-  server.close();
   rmSync(home, { recursive: true, force: true });
   report.finished_at = new Date().toISOString();
   save();

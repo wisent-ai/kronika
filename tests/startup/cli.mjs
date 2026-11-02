@@ -179,9 +179,9 @@ try {
     { args: ['sources', '--repo', file], what: `Repository is not a directory: ${file}`, why: 'is a file', fix: 'not a file inside it' },
     { args: ['gui', '--repo', missing], what: `Repository ${missing} (from --repo) cannot be used`, why: '(ENOENT)', fix: 'pass --repo' },
     { args: ['gui', '--repo', project, '--port', String(occupied)], what: `cannot listen on 127.0.0.1:${occupied}`, why: 'another process already listens there (EADDRINUSE)', fix: 'pass another --port' },
-    { args: ['write', '--repo', project], what: 'BRAMA_URL is required', why: 'is not set', fix: 'export BRAMA_URL=' },
-    { args: ['write', '--repo', project], env: { BRAMA_URL: '' }, what: 'BRAMA_URL is required', why: 'set but empty', fix: 'kronika sources' },
-    { args: ['check', '--repo', project, '--base', 'HEAD'], env: { BRAMA_URL: 'http://127.0.0.1:1' }, what: 'BRAMA_API_KEY_ROLE is required', why: 'is not set, so no bearer can be read', fix: 'KRONIKA_CREDENTIALS_FILE' },
+    { args: ['write', '--repo', project], env: { STADO_BIN: join(directory, 'no-stado') }, what: 'BRAMA_URL is not set and', why: 'could not run', fix: 'install Stado or export BRAMA_URL' },
+    { args: ['write', '--repo', project], env: { BRAMA_URL: '' }, what: 'BRAMA_URL is set but empty', why: 'names the router it asks', fix: "unset it so Stado's inference alternatives answer" },
+    { args: ['check', '--repo', project, '--base', 'HEAD'], env: { BRAMA_URL: 'http://127.0.0.1:1' }, what: 'BRAMA_API_KEY_ROLE is required with BRAMA_URL', why: 'is not set, so no bearer can be read', fix: 'KRONIKA_CREDENTIALS_FILE' },
   ];
   // A directory this user may not search refuses a lookup below it, except
   // for a user the permission bits do not bind (root); that is recorded as

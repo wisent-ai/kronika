@@ -1,7 +1,7 @@
 #!/bin/sh
 # gate-a-change.sh — CI documentation gate: audit exactly this branch's
 # changes against current documentation; exit 1 blocks the merge.
-# Needs: BRAMA_URL and BRAMA_API_KEY_ROLE (ROLE#FIELD of the Brama bearer) in the environment, and stado on PATH.
+# Needs: stado on PATH; its inference alternatives answer each request. To name a router instead: BRAMA_URL and BRAMA_API_KEY_ROLE (ROLE#FIELD of its bearer).
 # Byte limits are optional (--max-input-bytes, --max-file-bytes, --max-diff-bytes); unset, everything is read.
 # Run: sh gate-a-change.sh [base-ref]
 set -eu

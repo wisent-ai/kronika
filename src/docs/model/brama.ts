@@ -16,14 +16,14 @@ export type BramaClientOptions = {
   fetchImpl?: typeof fetch;
 };
 
-const isRecord = (value: unknown): value is Record<string, unknown> =>
+export const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === "object" && value !== null && !Array.isArray(value);
 
 // https://tc39.es/ecma262/#eqn-MillisecondsPerSecond ("MillisecondsPerSecond = 1000")
 const MILLISECONDS_PER_SECOND = 1000;
 
 /** The message of the first choice, when the answer has one. */
-const firstMessage = (value: unknown): Record<string, unknown> | undefined => {
+export const firstMessage = (value: unknown): Record<string, unknown> | undefined => {
   if (!isRecord(value) || !Array.isArray(value.choices)) return undefined;
   const [first] = value.choices;
   if (!isRecord(first) || !isRecord(first.message)) return undefined;
@@ -177,8 +177,8 @@ export class BramaClient implements CompletionClient {
   }
 }
 
-/** `result`, with the model Brama says answered when it names one. */
-const withModel = <T extends object>(result: T, data: unknown): T & { model?: string } => {
+/** `result`, with the model the answer says answered when it names one. */
+export const withModel = <T extends object>(result: T, data: unknown): T & { model?: string } => {
   if (isRecord(data) && typeof data.model === "string") return { ...result, model: data.model };
   return result;
 };

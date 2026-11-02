@@ -57,12 +57,14 @@ Options:
                          accepted by gui, which prints its session URL
   -h, --help             Show this help
 
-Brama environment:
-  BRAMA_URL                       the Brama gateway, or any OpenAI-compatible provider
-  BRAMA_API_KEY_ROLE              ROLE#FIELD: the role the item holding the bearer plays, and its field
-  WISENT_APP_AGENT_ID             optional; unset, requests go unsigned
+Model environment:
+  BRAMA_URL                       optional; a router to ask. Unset, each request is
+                                  handed to stado capabilities call inference
+                                  --consumer kronika and no bearer is read
+  BRAMA_API_KEY_ROLE              with BRAMA_URL: ROLE#FIELD of the item holding its bearer
+  WISENT_APP_AGENT_ID             optional with BRAMA_URL; unset, requests go unsigned
   WISENT_APP_AGENT_AUTH_SECRET_ROLE  ROLE#FIELD of the signing secret
-  STADO_BIN                       the stado executable the roles are read through (default: stado on PATH)
+  STADO_BIN                       the stado executable requests and roles go through (default: stado on PATH)
   KRONIKA_CREDENTIALS_FILE        without Stado: owner-only JSON file of role -> field -> value
                                   that answers every ROLE#FIELD reference
   KRONIKA_MODEL (optional)

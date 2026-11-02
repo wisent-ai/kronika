@@ -3,6 +3,8 @@
 import { execFileSync } from "node:child_process";
 
 import { BramaClient } from "./docs/model/brama.js";
+import { StadoClient } from "./docs/model/stado.js";
+import type { CompletionClient } from "./docs/model/types.js";
 import { checkDocumentation } from "./docs/checker.js";
 import { recordWorkspaceInitialized, renderOnboardingView, runOnboardingAction } from "./onboarding/onboarding.js";
 import { startKronikaGui } from "./gui.js";
@@ -104,26 +106,34 @@ const main = async (): Promise<void> => {
   }
 
   const bramaUrl = process.env.BRAMA_URL;
-  // Only role references travel in the environment; the secrets themselves
-  // are read through Stado by the role their item plays (cli.md rule 15).
-  const apiKeyRole = process.env.BRAMA_API_KEY_ROLE;
-  const agentId = process.env.WISENT_APP_AGENT_ID;
-  const authSecretRole = process.env.WISENT_APP_AGENT_AUTH_SECRET_ROLE;
-  if (!bramaUrl) {
-    throw new Error(`BRAMA_URL is required: ${args.command} asks a model through Brama, and BRAMA_URL, the address of the Brama gateway or another OpenAI-compatible provider, is ${bramaUrl === undefined ? "not set" : "set but empty"}; export BRAMA_URL=<gateway URL>, or run kronika sources, which reads the repository without a model`);
+  // Without BRAMA_URL, Kronika names no model service: each request is handed
+  // to `stado capabilities call inference --consumer kronika`, which asks the
+  // first alternative in Stado's selected order that answers it, and no
+  // bearer of Kronika's is read. Named, only role references travel in the
+  // environment; the secrets are read through Stado by the role their item
+  // plays (cli.md rule 15).
+  let client: CompletionClient;
+  if (bramaUrl === undefined) {
+    client = new StadoClient();
+  } else {
+    const apiKeyRole = process.env.BRAMA_API_KEY_ROLE;
+    const agentId = process.env.WISENT_APP_AGENT_ID;
+    const authSecretRole = process.env.WISENT_APP_AGENT_AUTH_SECRET_ROLE;
+    if (!bramaUrl) {
+      throw new Error(`BRAMA_URL is set but empty: ${args.command} asks a model, and an exported BRAMA_URL names the router it asks; export BRAMA_URL=<gateway URL>, or unset it so Stado's inference alternatives answer`);
+    }
+    if (!apiKeyRole) {
+      throw new Error(`BRAMA_API_KEY_ROLE is required with BRAMA_URL: ROLE#FIELD naming the role the item holding the router's bearer plays, and its field; it is ${apiKeyRole === undefined ? "not set" : "set but empty"}, so no bearer can be read for ${bramaUrl}; export BRAMA_API_KEY_ROLE=<role>#<field> for the item stado credentials get answers, set KRONIKA_CREDENTIALS_FILE to an owner-only JSON file of role -> field -> value, or unset BRAMA_URL so Stado's inference alternatives answer`);
+    }
+    const apiKey = readCredential(apiKeyRole, "BRAMA_API_KEY_ROLE");
+    const authSecret = authSecretRole ? readCredential(authSecretRole, "WISENT_APP_AGENT_AUTH_SECRET_ROLE") : undefined;
+    client = new BramaClient({
+      url: bramaUrl,
+      apiKey,
+      ...(agentId ? { agentId } : {}),
+      ...(authSecret ? { authSecret } : {}),
+    });
   }
-  if (!apiKeyRole) {
-    throw new Error(`BRAMA_API_KEY_ROLE is required: ROLE#FIELD naming the role the item holding the Brama bearer plays, and its field; it is ${apiKeyRole === undefined ? "not set" : "set but empty"}, so no bearer can be read for ${bramaUrl}; export BRAMA_API_KEY_ROLE=<role>#<field> for the item stado credentials get answers, or set KRONIKA_CREDENTIALS_FILE to an owner-only JSON file of role -> field -> value`);
-  }
-  const apiKey = readCredential(apiKeyRole, "BRAMA_API_KEY_ROLE");
-  const authSecret = authSecretRole ? readCredential(authSecretRole, "WISENT_APP_AGENT_AUTH_SECRET_ROLE") : undefined;
-
-  const client = new BramaClient({
-    url: bramaUrl,
-    apiKey,
-    ...(agentId ? { agentId } : {}),
-    ...(authSecret ? { authSecret } : {}),
-  });
 
   if (args.command === "sync") {
     const result = await syncDocumentation(

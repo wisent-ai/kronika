@@ -143,17 +143,17 @@ function failedFetch(url, error) {
   return { ok: false, error: `${url}: ${reasons.join("; ")}` };
 }
 
-// --- Model endpoint (Brama, or the alternative Stado resolves) -------------
+// --- Model service (a named router, or Stado's inference alternatives) -----
 
-/** The consumer Kronika is to Stado's capability resolution. */
+/** The consumer Kronika is to Stado's capabilities. */
 const CONSUMER = "kronika";
+
+/** The command a request is handed to when no router is named. */
+const STADO_CALL = ["capabilities", "call", "inference", "--consumer", CONSUMER, "--json"];
 
 export class EndpointNotConfiguredError extends Error {
   constructor(detail) {
-    super(
-      `no model service answers Kronika on this machine: ${detail}; set BRAMA_URL, or declare an ` +
-        "alternative Stado hands out (`stado capabilities resolve inference --consumer kronika`)",
-    );
+    super(`no model service answers Kronika on this machine: ${detail}`);
     this.name = "EndpointNotConfiguredError";
   }
 }
@@ -172,64 +172,17 @@ function configuredEndpoint(value, via) {
   return { url: url.href.replace(/\/+$/, ""), via };
 }
 
-/** Every alternative a refusal envelope (stdout or stderr) names, as one sentence. */
-function unreachableNamed(printed) {
-  for (const text of printed) {
-    try {
-      const items = JSON.parse(text).details?.unreachable ?? [];
-      const sentence = items.map((item) => `${item.product} at ${item.route}: ${item.cause}`).join("; ");
-      if (sentence) return sentence;
-    } catch {
-      // Not the envelope; the next stream may be.
-    }
-  }
-  return undefined;
-}
-
-function stado(args) {
-  return execFileSync("stado", args, { encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] });
-}
-
 /**
- * BRAMA_URL when the operator set it; else what Stado's capability
- * resolution hands Kronika (`stado capabilities resolve inference --consumer
- * kronika`): Brama's route when it answers, or the OpenAI-compatible
- * endpoint the operator declared in its place, with that endpoint's own
- * `model` and `bearer` (read by the role it names). `failed` reports that
- * Brama refused Kronika, so Stado proves it again now. When no alternative
- * answers, the refusal names each one's product, route and cause.
+ * Where Kronika's model requests go: BRAMA_URL when the operator set it;
+ * else Stado, which is handed each request (`stado capabilities call
+ * inference --consumer kronika`) and sends it to the first alternative in
+ * its selected order that answers — Brama, or a statement recorded for that
+ * exact request. Kronika names no alternative, so one Stado adds is used
+ * without a change here.
  */
-export function resolveEndpoint(env = process.env, { failed = false } = {}) {
+export function resolveEndpoint(env = process.env) {
   if (env.BRAMA_URL !== undefined) return configuredEndpoint(env.BRAMA_URL, "BRAMA_URL");
-  const args = ["capabilities", "resolve", "inference", "--consumer", CONSUMER];
-  if (failed) args.push("--failed", "brama");
-  args.push("--json");
-  let printed;
-  try {
-    printed = stado(args);
-  } catch (error) {
-    if (typeof error.status !== "number") {
-      throw new EndpointNotConfiguredError(`BRAMA_URL is unset and stado did not run (${error.message})`);
-    }
-    const said = unreachableNamed([String(error.stdout ?? ""), String(error.stderr ?? "")]);
-    throw new EndpointNotConfiguredError(`BRAMA_URL is unset and no inference alternative answers: ${said ?? String(error.stderr ?? "").trim()}`);
-  }
-  const answer = JSON.parse(printed);
-  const via = `stado capabilities resolve inference --consumer ${CONSUMER} (${answer.provider})`;
-  const endpoint = { ...configuredEndpoint(answer.route, via), provider: answer.provider };
-  if (answer.provider === "brama") return endpoint;
-  if (!answer.model) {
-    throw new EndpointNotConfiguredError(`${answer.provider} at ${answer.route} answers in Brama's place but declares no model: set capabilities.inference.endpoint.model`);
-  }
-  let bearer;
-  if (answer.key_role) {
-    try {
-      bearer = stado(["credentials", "get", "--role", answer.key_role, "--field", "token"]).trim();
-    } catch (error) {
-      throw new EndpointNotConfiguredError(`${answer.provider} at ${answer.route} answers in Brama's place, but the key of role ${answer.key_role} cannot be read: ${String(error.stderr ?? error.message).trim()}`);
-    }
-  }
-  return { ...endpoint, model: answer.model, bearer };
+  return { url: null, via: `stado ${STADO_CALL.join(" ")}` };
 }
 
 export class InfraDownError extends Error {
@@ -241,67 +194,113 @@ export class InfraDownError extends Error {
   }
 }
 
+/** The `Error:` line of a failed Stado command, else its last line. */
+function stadoCause(said) {
+  const lines = said.split("\n").map((line) => line.trim()).filter(Boolean).reverse();
+  const error = lines.find((line) => line.startsWith("Error: "));
+  return error ? error.slice("Error: ".length) : (lines[0] ?? "it said nothing");
+}
+
+/**
+ * Hand `body` to Stado's inference alternatives and read what it printed.
+ * A refusal (no alternative answered) is the model infrastructure down, an
+ * InfraDownError carrying Stado's sentence, which names each alternative
+ * with its cause and the command that answers a kept request.
+ */
+function callStado(body) {
+  const via = `stado ${STADO_CALL.join(" ")}`;
+  const { promise, resolve, reject } = Promise.withResolvers();
+  const child = execFile("stado", STADO_CALL, { encoding: "utf8", maxBuffer: Number.MAX_SAFE_INTEGER }, (error, stdout, stderr) => {
+    if (error && typeof error.code !== "number") {
+      reject(new EndpointNotConfiguredError(`BRAMA_URL is unset and \`${via}\` could not run (${error.message}); install Stado or set BRAMA_URL`));
+      return;
+    }
+    if (error) {
+      reject(new InfraDownError(via, `no inference alternative answered (exit ${error.code}): ${stadoCause(String(stderr))}`));
+      return;
+    }
+    try {
+      resolve(JSON.parse(stdout));
+    } catch (parse) {
+      reject(new Error(`\`${via}\` printed an answer that is not JSON: ${parse.message}`));
+    }
+  });
+  child.stdin.end(body);
+  return promise;
+}
+
 /**
  * One OpenAI-compatible chat completion answered by one required call of the
  * function `answer` names ({ name, schema }), whose parameters are its strict
- * schema; that call's arguments are returned parsed. The model infrastructure
- * being unreachable throws InfraDownError: a network-level failure (refused,
- * DNS) or a gateway-unavailability status, whose text is kept in the error.
- * An answering endpoint with any other bad status, an answer without exactly
- * that one call, or arguments that are not one JSON object throws a plain
- * Error. Never calls a provider directly, and no clock cuts the request off.
+ * schema; that call's arguments are returned parsed. `endpoint` is the named
+ * router's base URL, or null to hand the request to Stado's alternatives. The
+ * model infrastructure being unreachable throws InfraDownError: a
+ * network-level failure, a gateway-unavailability status, or no alternative
+ * answering. An answer with any other bad status, without exactly that one
+ * call, or with arguments that are not one JSON object throws a plain Error.
+ * Never calls a provider directly, and no clock cuts the request off.
  */
 export async function chatObject({ endpoint, bearer, messages, model, answer }) {
-  const url = `${endpoint}/v1/chat/completions`;
   const tools = [{ type: "function", function: { name: answer.name, description: `The ${answer.name} answer, as its parameters describe it.`, strict: true, parameters: answer.schema } }];
   const toolChoice = { type: "function", function: { name: answer.name } };
-  let res;
-  try {
-    res = await fetch(url, {
-      method: "POST",
-      redirect: "manual",
-      headers: { "content-type": "application/json", ...(bearer ? { authorization: `Bearer ${bearer}` } : {}) },
-      body: JSON.stringify({ model, messages, tools, tool_choice: toolChoice }),
-    });
-  } catch (e) {
-    throw new InfraDownError(url, String(e.cause?.code ?? e.cause?.message ?? e.message));
-  }
-  let text;
-  try {
-    text = await res.text();
-  } catch (error) {
-    throw new InfraDownError(url, `reading HTTP ${res.status} response failed: ${error.cause?.message ?? error.message}`);
-  }
-  if (!res.ok) {
-    if (INFRA_DOWN_STATUSES.includes(res.status)) throw new InfraDownError(url, `HTTP ${res.status}: ${text}`);
-    throw new Error(`brama at ${url} answered HTTP ${res.status}: ${text}`);
-  }
+  const request = JSON.stringify({ model, messages, tools, tool_choice: toolChoice });
   let body;
-  try {
-    body = JSON.parse(text);
-  } catch (error) {
-    throw new Error(`decoding brama response from ${url} (HTTP ${res.status}) failed: ${error.message}; body: ${text}`, { cause: error });
+  let who;
+  let text;
+  if (endpoint === null) {
+    const printed = await callStado(request);
+    body = printed.answer;
+    who = `${printed.resolution?.provider ?? "stado"} (through stado capabilities call)`;
+    text = JSON.stringify(body);
+  } else {
+    const url = `${endpoint}/v1/chat/completions`;
+    who = `brama at ${url}`;
+    let res;
+    try {
+      res = await fetch(url, {
+        method: "POST",
+        redirect: "manual",
+        headers: { "content-type": "application/json", ...(bearer ? { authorization: `Bearer ${bearer}` } : {}) },
+        body: request,
+      });
+    } catch (e) {
+      throw new InfraDownError(url, String(e.cause?.code ?? e.cause?.message ?? e.message));
+    }
+    try {
+      text = await res.text();
+    } catch (error) {
+      throw new InfraDownError(url, `reading HTTP ${res.status} response failed: ${error.cause?.message ?? error.message}`);
+    }
+    if (!res.ok) {
+      if (INFRA_DOWN_STATUSES.includes(res.status)) throw new InfraDownError(url, `HTTP ${res.status}: ${text}`);
+      throw new Error(`${who} answered HTTP ${res.status}: ${text}`);
+    }
+    try {
+      body = JSON.parse(text);
+    } catch (error) {
+      throw new Error(`decoding the answer of ${who} (HTTP ${res.status}) failed: ${error.message}; body: ${text}`, { cause: error });
+    }
   }
   if (!Array.isArray(body?.choices)) {
-    throw new Error(`brama at ${url} answered HTTP ${res.status} without a choices list; body: ${text}`);
+    throw new Error(`${who} answered without a choices list; body: ${text}`);
   }
   const [choice] = body.choices;
   const calls = choice?.message?.tool_calls;
   if (!Array.isArray(calls)) {
-    throw new Error(`brama at ${url} answered HTTP ${res.status} without calling ${answer.name}; body: ${text}`);
+    throw new Error(`${who} answered without calling ${answer.name}; body: ${text}`);
   }
   const [call, ...others] = calls;
   if (!call || others.length || call.function?.name !== answer.name || typeof call.function.arguments !== "string") {
-    throw new Error(`brama at ${url} did not answer by exactly one call of ${answer.name}; body: ${text}`);
+    throw new Error(`${who} did not answer by exactly one call of ${answer.name}; body: ${text}`);
   }
   let object;
   try {
     object = JSON.parse(call.function.arguments);
   } catch (error) {
-    throw new Error(`brama at ${url} called ${answer.name} with arguments that are not JSON: ${error.message}; arguments: ${call.function.arguments}`, { cause: error });
+    throw new Error(`${who} called ${answer.name} with arguments that are not JSON: ${error.message}; arguments: ${call.function.arguments}`, { cause: error });
   }
   if (object === null || typeof object !== "object" || Array.isArray(object)) {
-    throw new Error(`brama at ${url} called ${answer.name} with ${call.function.arguments}, not one JSON object`);
+    throw new Error(`${who} called ${answer.name} with ${call.function.arguments}, not one JSON object`);
   }
   return object;
 }

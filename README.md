@@ -97,9 +97,9 @@ Kronika serves:
 | Adopt existing documentation | readable Markdown in `README.md`, `docs/`, or explicit `--docs` paths | Implemented; writes only `kronika.sync.json` |
 | Graphical adoption | installed `kronika` CLI and a local browser | Implemented; loopback-only, writes only the same sync manifest as `init` |
 | Local source inspection | readable repository | Implemented; no model call |
-| Documentation preview | Brama URL and scoped bearer; optional request-signing identity | Implemented |
+| Documentation preview | Stado (its inference alternatives answer each request), or a named router (`BRAMA_URL` and its scoped bearer; optional request-signing identity) | Implemented |
 | Atomic apply | writable output within repository | Implemented with explicit flag |
-| Exact Git-change documentation gate | Brama URL, scoped bearer, base/head refs | Implemented |
+| Exact Git-change documentation gate | Stado's inference alternatives or a named router, base/head refs | Implemented |
 | Stable provenance/freshness store | — | Not implemented in `0.2.0` |
 | Hosted scheduling/review/publishing | managed service | Not implemented by this package |
 
@@ -256,12 +256,15 @@ that holds the result to its evidence, is in
 
 ## Operational model
 
-- **Configuration:** CLI/API arguments plus scoped Brama URL, bearer, optional
-  request-signing identity and secret, and model selector.
+- **Configuration:** CLI/API arguments and model selector. Without `BRAMA_URL`,
+  each model request is handed to `stado capabilities call inference
+  --consumer kronika`, which asks the first alternative in Stado's selected
+  order that answers it, and no bearer is read; with `BRAMA_URL`, its scoped
+  bearer and optional request-signing identity.
 - **State:** no hosted database; output and Git history remain in the selected
   repository.
-- **Credentials:** bearer and optional HMAC material are runtime secrets and
-  must never enter source, output, logs, or public issues.
+- **Credentials:** a named router's bearer and optional HMAC material are
+  runtime secrets and must never enter source, output, logs, or public issues.
 - **Observability:** selected/skipped source manifest, byte totals, resolved
   base/head SHAs, changed paths, documentation findings, preview,
   machine-readable result, Brama errors, and Git diff after apply.

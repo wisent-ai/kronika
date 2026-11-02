@@ -73,8 +73,7 @@ export async function authorPlan({ brief, repo, model, endpoint, standardPath })
     },
   ];
   const answer = { name: "documentation_plan", schema: strictAnswerSchema(planSchema) };
-  // An alternative answering in Brama's place is asked for its own model.
-  const object = await chatObject({ endpoint: endpoint.url, bearer: endpoint.bearer, messages, model: endpoint.model ?? model, answer });
+  const object = await chatObject({ endpoint: endpoint.url, bearer: endpoint.bearer, messages, model, answer });
   const plan = planFromAnswer(object, planSchema);
   const schemaErrors = validatePlan(plan);
   return { plan, schemaErrors, endpoint };
